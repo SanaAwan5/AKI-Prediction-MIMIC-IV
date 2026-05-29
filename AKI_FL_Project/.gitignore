@@ -1,0 +1,19 @@
+flamby_env/
+# Virtual environments
+venv/
+env/
+ENV/
+flamby_env/
+*.venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/

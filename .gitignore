@@ -1,0 +1,14 @@
+*.csv aki_features_iid.csv simulated_sites/ fl_results/ fl_results_v2/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Results / outputs (optional — remove if you want to track these)
+fl_results/
+*.png
+*.json
+
+# OS
+.DS_Store

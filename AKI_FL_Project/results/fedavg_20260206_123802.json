@@ -1,0 +1,80 @@
+{
+  "config": {
+    "dataset": "fed_heart_disease",
+    "results_file": "results_heart_disease.csv",
+    "strategies": {
+      "Cyclic": {
+        "deterministic_cycle": false,
+        "learning_rate": 0.01,
+        "optimizer_class": "torch.optim.SGD"
+      },
+      "FedAdagrad": {
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "learning_rate": 0.003162,
+        "optimizer_class": "torch.optim.SGD",
+        "server_learning_rate": 0.316228,
+        "tau": 1e-08
+      },
+      "FedAdam": {
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "learning_rate": 0.01,
+        "optimizer_class": "torch.optim.SGD",
+        "server_learning_rate": 0.01,
+        "tau": 1e-08
+      },
+      "FedAvg": {
+        "learning_rate": 0.001,
+        "optimizer_class": "torch.optim.SGD"
+      },
+      "FedProx": {
+        "learning_rate": 0.001,
+        "mu": 0.01,
+        "optimizer_class": "torch.optim.SGD"
+      },
+      "FedYogi": {
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "learning_rate": 0.003162,
+        "optimizer_class": "torch.optim.SGD",
+        "server_learning_rate": 0.01,
+        "tau": 1e-08
+      },
+      "Scaffold": {
+        "learning_rate": 0.001,
+        "optimizer_class": "torch.optim.SGD",
+        "server_learning_rate": 1.0
+      }
+    },
+    "strategy": {
+      "name": "FedProx",
+      "nrounds": 50
+    },
+    "num_updates": 50
+  },
+  "rounds": [
+    5,
+    10,
+    15,
+    20,
+    25,
+    30,
+    35,
+    40,
+    45,
+    50
+  ],
+  "metrics": [
+    0.8987512322074134,
+    0.8993806333052218,
+    0.8995351131126801,
+    0.9001015274711598,
+    0.8998749201003078,
+    0.899961053371719,
+    0.9003675753140741,
+    0.8994685224250624,
+    0.8997809097795251,
+    0.9006806199693396
+  ]
+}
