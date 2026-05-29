@@ -27,12 +27,6 @@ sites from a MIMIC-IV AKI CSV.
            (e.g. less precise analysers at rural hospitals = wider spread).
            The mean is NEVER moved synthetically -- only the variance.
 
-Design rationale
-----------------
-Separating mean shift (real, from sampling) from spread shift (synthetic,
-from calibration noise) gives two independently interpretable heterogeneity
-axes. At gamma=0: uniform sampling + no spread perturbation (IID baseline).
-At gamma=1: maximum acuity skew + maximum spread perturbation per site config.
 
 Columns expected in CSV
 -----------------------
