@@ -1,20 +1,5 @@
 """
-mimic_ftl_training_v2.py
-════════════════════════
-Upgraded FL training script implementing all short-term and medium-term
-recommendations from results analysis.
 
-SHORT-TERM:
-  - Multiple seeds (default 5) with mean ± std confidence intervals
-  - Fairness panel: per-site AUROC variance across conditions
-  - site_E degradation highlighted as primary finding
-
-MEDIUM-TERM:
-  - alpha=0.3 condition added (sharper label imbalance, wider algorithm gaps)
-  - Local-only baseline (each site trains on its own data only)
-  - Centralised baseline (all data pooled — upper bound)
-  - SCAFFOLD with CV clipping (--cv_clip, default 1.0) to fix instability
-  - Full results table with CIs for paper
 
 Usage
 ─────
