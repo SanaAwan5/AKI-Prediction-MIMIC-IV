@@ -1,0 +1,58 @@
+
+=================================================================
+  FedAdapt training  |  method=SCAFFOLD
+  rounds=50  local_epochs=5  lr=0.001  batch=256
+  embedding_dim=64  (DEBUG: confirms CLI arg received)
+  output → results_phase2_approach2/alpha0.3_gamma0.75/scaffold/scaffold
+=================================================================
+
+Loading site data...
+  [load] site_A: 33,000 rows × 40 cols  (AKI=0.234)
+  [load] site_B: 33,000 rows × 60 cols  (AKI=0.113)
+  [load] site_C: 33,000 rows × 110 cols  (AKI=0.090)
+  [load] site_D: 33,000 rows × 48 cols  (AKI=0.075)
+  [load] site_E: 33,000 rows × 25 cols  (AKI=0.052)
+  [fl_gain] auto-detected: fl_gain_index_alpha0.3_gamma0.75.csv
+
+Running local-only baseline...
+
+  ── Local-only baseline ──
+    site_A: local AUROC=0.9769
+    site_B: local AUROC=0.9274
+    site_C: local AUROC=0.9141
+    site_D: local AUROC=0.7896
+    site_E: local AUROC=0.8744
+
+Building FedAdaptClient per site...
+  [model] site_A: input_dim=39  → embedding_dim=64  hidden=128  lambda_adv=0.100
+  [model] site_B: input_dim=59  → embedding_dim=64  hidden=128  lambda_adv=0.075
+  [model] site_C: input_dim=109  → embedding_dim=64  hidden=128  lambda_adv=0.060
+  [model] site_D: input_dim=47  → embedding_dim=64  hidden=128  lambda_adv=0.050
+  [model] site_E: input_dim=24  → embedding_dim=64  hidden=128  lambda_adv=0.034
+
+  ── Federation [SCAFFOLD]  50 rounds × 5 local epochs ──
+    Round   5/50  |  site_A=0.945  site_B=0.921  site_C=0.916  site_D=0.785  site_E=0.862
+    Round  10/50  |  site_A=0.967  site_B=0.925  site_C=0.924  site_D=0.779  site_E=0.866
+    Round  15/50  |  site_A=0.970  site_B=0.920  site_C=0.922  site_D=0.782  site_E=0.867
+    Round  20/50  |  site_A=0.973  site_B=0.928  site_C=0.920  site_D=0.790  site_E=0.885
+    Round  25/50  |  site_A=0.974  site_B=0.928  site_C=0.916  site_D=0.801  site_E=0.907
+    Round  30/50  |  site_A=0.975  site_B=0.933  site_C=0.918  site_D=0.805  site_E=0.902
+    Round  35/50  |  site_A=0.977  site_B=0.933  site_C=0.914  site_D=0.803  site_E=0.899
+    Round  40/50  |  site_A=0.975  site_B=0.936  site_C=0.917  site_D=0.812  site_E=0.901
+    Round  45/50  |  site_A=0.976  site_B=0.934  site_C=0.920  site_D=0.815  site_E=0.909
+    Round  50/50  |  site_A=0.975  site_B=0.935  site_C=0.922  site_D=0.818  site_E=0.908
+
+  Final metrics:
+site_id    auroc       f1    auprc
+ site_A 0.975237 0.877990 0.925103
+ site_B 0.935376 0.645438 0.647911
+ site_C 0.921556 0.622441 0.579956
+ site_D 0.817489 0.401259 0.319960
+ site_E 0.908544 0.452508 0.448799
+
+  Generating plots...
+  [plot] training_curves.png
+  [plot] final_metrics.png
+  [plot] fl_gain_correlation.png
+
+✅  Done — all outputs in results_phase2_approach2/alpha0.3_gamma0.75/scaffold/scaffold/

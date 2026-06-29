@@ -25,3 +25,12 @@ phase2_sites_approach2/
 alpha_results/
 phase2_results/
 cached_creatinine_approach2.csv
+phase2_sites/
+fl_results_v2/
+phase2_sites_approach2/
+alpha_results/
+phase2_results/
+cached_creatinine_approach2.csv
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

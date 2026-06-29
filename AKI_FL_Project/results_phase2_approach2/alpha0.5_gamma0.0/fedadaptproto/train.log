@@ -1,0 +1,65 @@
+
+=================================================================
+  FedAdapt training  |  method=FEDADAPTPROTO
+  rounds=50  local_epochs=5  lr=0.001  batch=256
+  embedding_dim=64  (DEBUG: confirms CLI arg received)
+  output → results_phase2_approach2/alpha0.5_gamma0.0/fedadaptproto/fedadaptproto
+=================================================================
+
+Loading site data...
+  [load] site_A: 33,000 rows × 40 cols  (AKI=0.234)
+  [load] site_B: 33,000 rows × 60 cols  (AKI=0.110)
+  [load] site_C: 33,000 rows × 110 cols  (AKI=0.090)
+  [load] site_D: 33,000 rows × 48 cols  (AKI=0.077)
+  [load] site_E: 33,000 rows × 25 cols  (AKI=0.057)
+  [fl_gain] auto-detected: fl_gain_index_alpha0.5_gamma0.0.csv
+
+Running local-only baseline...
+
+  ── Local-only baseline ──
+    site_A: local AUROC=0.9531
+    site_B: local AUROC=0.9335
+    site_C: local AUROC=0.9209
+    site_D: local AUROC=0.7568
+    site_E: local AUROC=0.8752
+
+Building FedAdaptClient per site...
+  [model] site_A: input_dim=39  → embedding_dim=64  hidden=128  lambda_adv=0.100
+  [model] site_B: input_dim=59  → embedding_dim=64  hidden=128  lambda_adv=0.073
+  [model] site_C: input_dim=109  → embedding_dim=64  hidden=128  lambda_adv=0.060
+  [model] site_D: input_dim=47  → embedding_dim=64  hidden=128  lambda_adv=0.051
+  [model] site_E: input_dim=24  → embedding_dim=64  hidden=128  lambda_adv=0.038
+
+  ── Federation [FEDADAPTPROTO]  50 rounds × 5 local epochs ──
+    Round   5/50  |  site_A=0.940  site_B=0.926  site_C=0.932  site_D=0.768  site_E=0.900
+    Round  10/50  |  site_A=0.947  site_B=0.918  site_C=0.874  site_D=0.748  site_E=0.881
+    Round  15/50  |  site_A=0.943  site_B=0.854  site_C=0.905  site_D=0.727  site_E=0.874
+    Round  20/50  |  site_A=0.891  site_B=0.919  site_C=0.910  site_D=0.761  site_E=0.883
+    Round  25/50  |  site_A=0.935  site_B=0.806  site_C=0.855  site_D=0.752  site_E=0.882
+    Round  30/50  |  site_A=0.931  site_B=0.903  site_C=0.851  site_D=0.783  site_E=0.867
+    Round  35/50  |  site_A=0.918  site_B=0.879  site_C=0.915  site_D=0.749  site_E=0.839
+    Round  40/50  |  site_A=0.930  site_B=0.889  site_C=0.929  site_D=0.821  site_E=0.746
+    Round  45/50  |  site_A=0.882  site_B=0.870  site_C=0.932  site_D=0.798  site_E=0.868
+    Round  50/50  |  site_A=0.887  site_B=0.891  site_C=0.866  site_D=0.771  site_E=0.876
+
+  ── Head fine-tuning (FedAdapt) ──
+    site_A: AUROC=0.8986  F1=0.6150  AUPRC=0.6977
+    site_B: AUROC=0.9271  F1=0.4180  AUPRC=0.6172
+    site_C: AUROC=0.9261  F1=0.3797  AUPRC=0.5793
+    site_D: AUROC=0.7878  F1=0.1736  AUPRC=0.2505
+    site_E: AUROC=0.8961  F1=0.2419  AUPRC=0.4022
+
+  Final metrics:
+site_id    auroc       f1    auprc
+ site_A 0.898590 0.615021 0.697743
+ site_B 0.927054 0.417970 0.617182
+ site_C 0.926118 0.379721 0.579256
+ site_D 0.787828 0.173560 0.250462
+ site_E 0.896104 0.241924 0.402166
+
+  Generating plots...
+  [plot] training_curves.png
+  [plot] final_metrics.png
+  [plot] fl_gain_correlation.png
+
+✅  Done — all outputs in results_phase2_approach2/alpha0.5_gamma0.0/fedadaptproto/fedadaptproto/

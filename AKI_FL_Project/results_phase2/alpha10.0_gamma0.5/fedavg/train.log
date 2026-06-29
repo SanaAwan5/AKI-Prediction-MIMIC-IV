@@ -1,0 +1,60 @@
+
+=================================================================
+  FedAdapt training  |  method=FEDAVG
+  rounds=50  local_epochs=5  lr=0.001  batch=256
+  output → results_phase2/alpha10.0_gamma0.5/fedavg/fedavg
+=================================================================
+
+Loading site data...
+  [load] site_A: 33,000 rows × 21 cols  (AKI=0.153)
+  [load] site_B: 33,000 rows × 23 cols  (AKI=0.130)
+  [load] site_C: 33,000 rows × 29 cols  (AKI=0.126)
+  [load] site_D: 33,000 rows × 19 cols  (AKI=0.123)
+  [load] site_E: 33,000 rows × 15 cols  (AKI=0.119)
+  [load] site_F: 33,000 rows (unlabeled)
+  [fl_gain] auto-detected: fl_gain_index_alpha10.0_gamma0.5.csv
+
+Running local-only baseline...
+
+  ── Local-only baseline ──
+    site_A: local AUROC=0.8007
+    site_B: local AUROC=0.7904
+    site_C: local AUROC=0.7574
+    site_D: local AUROC=0.7829
+    site_E: local AUROC=0.8312
+
+Building FedAdaptClient per site...
+  [model] site_A: input_dim=17  → embedding_dim=64  hidden=128
+  [model] site_B: input_dim=19  → embedding_dim=64  hidden=128
+  [model] site_C: input_dim=25  → embedding_dim=64  hidden=128
+  [model] site_D: input_dim=15  → embedding_dim=64  hidden=128
+  [model] site_E: input_dim=11  → embedding_dim=64  hidden=128
+  [model] site_F: input_dim=21  → embedding_dim=64  hidden=128
+
+  ── Federation [FEDAVG]  50 rounds × 5 local epochs ──
+    Round   5/50  |  site_A=0.867  site_B=0.871  site_C=0.857  site_D=0.851  site_E=0.870  site_F=0.000
+    Round  10/50  |  site_A=0.860  site_B=0.856  site_C=0.829  site_D=0.840  site_E=0.863  site_F=0.000
+    Round  15/50  |  site_A=0.848  site_B=0.853  site_C=0.814  site_D=0.827  site_E=0.857  site_F=0.000
+    Round  20/50  |  site_A=0.842  site_B=0.831  site_C=0.809  site_D=0.821  site_E=0.851  site_F=0.000
+    Round  25/50  |  site_A=0.826  site_B=0.831  site_C=0.792  site_D=0.807  site_E=0.845  site_F=0.000
+    Round  30/50  |  site_A=0.814  site_B=0.819  site_C=0.792  site_D=0.811  site_E=0.845  site_F=0.000
+    Round  35/50  |  site_A=0.810  site_B=0.807  site_C=0.788  site_D=0.807  site_E=0.833  site_F=0.000
+    Round  40/50  |  site_A=0.806  site_B=0.811  site_C=0.777  site_D=0.800  site_E=0.834  site_F=0.000
+    Round  45/50  |  site_A=0.808  site_B=0.807  site_C=0.782  site_D=0.790  site_E=0.830  site_F=0.000
+    Round  50/50  |  site_A=0.799  site_B=0.791  site_C=0.772  site_D=0.789  site_E=0.832  site_F=0.000
+
+  Final metrics:
+site_id    auroc       f1    auprc
+ site_A 0.798998 0.440509 0.546570
+ site_B 0.790759 0.437330 0.493030
+ site_C 0.771756 0.432797 0.471305
+ site_D 0.788886 0.336004 0.397954
+ site_E 0.831681 0.336364 0.513726
+ site_F 0.000000 0.000000 0.000000
+
+  Generating plots...
+  [plot] training_curves.png
+  [plot] final_metrics.png
+  [plot] fl_gain_correlation.png
+
+✅  Done — all outputs in results_phase2/alpha10.0_gamma0.5/fedavg/fedavg/
