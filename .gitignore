@@ -17,3 +17,11 @@ flamby_env/
 flamby_env/
 AKI_FL_Project/flamby_env/
 flamby_env/
+data/
+results/
+*.csv
+*.zip
+phase2_sites_approach2/
+alpha_results/
+phase2_results/
+cached_creatinine_approach2.csv
