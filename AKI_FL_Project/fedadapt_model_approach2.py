@@ -683,14 +683,26 @@ def fedadapt_loss(
     original FedAdapt loss, so existing FedAdapt/FedAvg/SCAFFOLD/FedProx
     runs are unaffected.
 
-    total = task_loss - lambda_adv * adv_loss + alpha_proto * proto_loss
+    total = task_loss + lambda_adv * adv_loss + alpha_proto * proto_loss
 
-    The minus sign on adv_loss is critical: we MAXIMISE the adversary's
-    confusion (i.e. MINIMISE its ability to predict the group), which is
-    equivalent to MINIMISING -adv_loss. The GRL handles the gradient
-    reversal so standard backprop works correctly — we just subtract here
-    for the loss logging (the actual gradient through GRL is already
-    reversed).
+    The plus sign on adv_loss is correct and relies ENTIRELY on the GRL's
+    own internal gradient reversal (see _GradientReversalFn.backward) to
+    invert the signal for the body. With a plain +lambda_adv*adv_loss:
+      - the discriminator's own weights (positioned after the GRL, so its
+        gradient never crosses the GRL boundary) get a normal, unmodified
+        gradient — standard descent, so it trains normally to get GOOD at
+        predicting the feature group from an embedding.
+      - the body's weights (before the GRL) have that same gradient
+        negated and scaled by the GRL on its way upstream — so the body
+        does ASCENT on adv_loss, i.e. is trained to fool an increasingly
+        competent discriminator. That's the actual adversarial tension:
+        one side minimizing, the other maximizing the same quantity.
+    (An earlier version of this code had an explicit minus sign here too,
+    on top of the GRL's own reversal — that double negation flipped BOTH
+    halves of the intended dynamic: the discriminator was trained to get
+    WORSE at its own job, and the double-cancelled sign left the body
+    training to make embeddings MORE group-distinguishable, the opposite
+    of the intended invariance goal. Do not reintroduce that minus sign.)
 
     The plus sign on proto_loss is equally critical and intentional:
     prototype alignment is COOPERATIVE, not adversarial. The client wants
@@ -728,7 +740,24 @@ def fedadapt_loss(
         task_logit, labels.float(), pos_weight=pos_weight
     )
     adv_loss  = F.cross_entropy(group_logits, group_labels)
-    total     = task_loss - lambda_adv * adv_loss
+    # FIX: previously `total = task_loss - lambda_adv * adv_loss`. That extra
+    # explicit negation, combined with the GRL's own internal negation in
+    # _GradientReversalFn.backward(), doubly inverted the intended dynamic:
+    #   - discriminator's own weights (after the GRL, unaffected by its
+    #     reversal) were trained via ASCENT on their own adv_loss — pushed to
+    #     get WORSE at classifying groups, not better.
+    #   - body weights (before the GRL) had the explicit minus and the GRL's
+    #     internal minus cancel out, so they did NORMAL DESCENT on adv_loss —
+    #     trained to make embeddings MORE group-distinguishable, the opposite
+    #     of the intended group-invariance goal.
+    # The GRL already handles the sign-flip needed for the body; the loss
+    # formula just needs a plain, standard `+lambda_adv * adv_loss` so the
+    # discriminator trains normally (minimize its own loss, get good at
+    # classifying groups) while the GRL alone inverts that signal for
+    # everything upstream (body trained to fool a genuinely competent
+    # discriminator — real adversarial tension, not two sides cooperating
+    # in the wrong direction).
+    total     = task_loss + lambda_adv * adv_loss
 
     if alpha_proto > 0.0:
         assert embeddings is not None and global_protos is not None, (
