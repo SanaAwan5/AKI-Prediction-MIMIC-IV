@@ -117,6 +117,18 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    # manual_seed alone does NOT guarantee determinism — several common ops
+    # (including some used by the KMeans-based prototype clustering path)
+    # remain non-deterministic without this. Investigated as the likely
+    # cause of a same-seed-same-code reproducibility issue found earlier
+    # this session, concentrated on site_C/D specifically (fedadaptproto's
+    # KMeans clustering step). warn_only=True rather than a hard failure,
+    # since forcing strict determinism can raise on an op with no
+    # deterministic implementation available on some backends (e.g. MPS).
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    if torch.cuda.is_available():
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
 # ─── DATA LOADING ─────────────────────────────────────────────────────────────
@@ -362,6 +374,20 @@ def init_scaffold_variates(
     client_variates = {sid: deepcopy(zero_state) for sid in clients}
     server_variate  = deepcopy(zero_state)
     return client_variates, server_variate
+
+
+# ─── GRADIENT-CONFLICT DIAGNOSTIC (site_D root-cause investigation) ───────────
+
+def _flatten_state_dict(state_dict: dict) -> torch.Tensor:
+    """Flatten a SharedBody state_dict into one 1D vector, in a stable key
+    order (Python dicts preserve insertion order, and state_dict()'s key
+    order is deterministic for a given model architecture), so vectors from
+    different calls are directly comparable position-for-position."""
+    return torch.cat([v.detach().float().flatten() for v in state_dict.values()])
+
+
+def _cosine_similarity_state_dicts(delta_a: torch.Tensor, delta_b: torch.Tensor) -> float:
+    return F.cosine_similarity(delta_a.unsqueeze(0), delta_b.unsqueeze(0)).item()
 
 
 # ─── EVALUATION ───────────────────────────────────────────────────────────────
@@ -1165,6 +1191,8 @@ def run_federation(
     server = FedAdaptServer(
         body=next(iter(clients.values())).body
     )
+    print(f"  [DEBUG-GC] args.track_gradient_conflict = {args.track_gradient_conflict!r}  "
+          f"(type={type(args.track_gradient_conflict).__name__})")
     server.broadcast(list(clients.values()))
 
     # v2.3: per-site K resolution. If --n_clusters_per_site is provided,
@@ -1205,6 +1233,18 @@ def run_federation(
 
     round_records: List[dict] = []
 
+    # Phase-1 checkpointing: track each site's own best across-round AUROC
+    # and a snapshot of its full client state at that point. Restored below
+    # before head fine-tuning (fedadapt/fedadaptproto) or before final
+    # evaluation (fedavg/fedprox/scaffold, which have no fine-tuning stage
+    # at all — for those methods this checkpoint IS the only correction
+    # available). No-op for sites still improving at the final round.
+    ckpt_best_auroc: Dict[str, float] = {sid: -1.0 for sid in clients}
+    ckpt_best_round: Dict[str, int]   = {sid: 0 for sid in clients}
+    ckpt_best_state: Dict[str, dict]  = {sid: None for sid in clients}
+
+    gradient_conflict_records: List[dict] = []
+
     print(f"\n  ── Federation [{method.upper()}]  {args.rounds} rounds × {args.local_epochs} local epochs ──")
 
     for rnd in range(1, args.rounds + 1):
@@ -1229,6 +1269,13 @@ def run_federation(
             global_body_snapshot = deepcopy(
                 next(iter(clients.values())).body.state_dict()
             )
+
+        if args.track_gradient_conflict:
+            pre_round_body_state = {
+                k: v.detach().clone()
+                for k, v in server.global_body.state_dict().items()
+            }
+            site_body_states_this_round: Dict[str, dict] = {}
 
         body_states:   List[dict]  = []
         sample_counts: List[float] = []
@@ -1258,11 +1305,20 @@ def run_federation(
                 # use it; otherwise fall back to the global --n_clusters value
                 # so v2.2 behavior is preserved when no override is passed.
                 k_site = per_site_k.get(sid, args.n_clusters)
+                # Site-specific RNG seed: previously this was
+                # args.seed + rnd only, identical across ALL sites within a
+                # round, meaning every site's k-means++ initialization drew
+                # the same relative random sequence — not truly independent
+                # per-site randomness, even though it was still fully
+                # deterministic run-to-run. site_idx (stable positional index
+                # in the clients dict, since Python dicts preserve insertion
+                # order) gives each site its own distinct, reproducible seed.
+                site_idx = list(clients.keys()).index(sid)
                 protos, n_pos, n_neg = (
                     compute_local_prototypes_multicluster(
                         emb_all, y_all,
                         n_clusters=k_site,
-                        rng=np.random.default_rng(args.seed + rnd),
+                        rng=np.random.default_rng(args.seed + rnd * 1000 + site_idx),
                     )
                     if k_site > 1
                     else compute_local_prototypes(emb_all, y_all)
@@ -1382,8 +1438,35 @@ def run_federation(
             body_states.append(client.get_body_state())
             sample_counts.append(float(sd.n_samples))
 
+            if args.track_gradient_conflict:
+                site_body_states_this_round[sid] = {
+                    k: v.detach().clone() for k, v in client.get_body_state().items()
+                }
+
         # ── aggregate ──────────────────────────────────────────────────────
         server.aggregate(body_states, sample_counts)
+
+        if args.track_gradient_conflict:
+            post_agg_body_state = {
+                k: v.detach().clone()
+                for k, v in server.global_body.state_dict().items()
+            }
+            pre_vec = _flatten_state_dict(pre_round_body_state)
+            agg_delta = _flatten_state_dict(post_agg_body_state) - pre_vec
+            for sid_gc, site_state in site_body_states_this_round.items():
+                site_delta = _flatten_state_dict(site_state) - pre_vec
+                cos_sim = _cosine_similarity_state_dicts(site_delta, agg_delta)
+                gradient_conflict_records.append({
+                    "round": rnd,
+                    "site_id": sid_gc,
+                    "cosine_similarity_with_aggregate": round(cos_sim, 4),
+                    "site_delta_norm": round(site_delta.norm().item(), 6),
+                    "aggregate_delta_norm": round(agg_delta.norm().item(), 6),
+                })
+            if rnd == 1:
+                print(f"  [DEBUG-GC] after round 1: "
+                      f"site_body_states_this_round had {len(site_body_states_this_round)} sites, "
+                      f"gradient_conflict_records now has {len(gradient_conflict_records)} rows")
 
         # SCAFFOLD: update server variate
         if method == "scaffold" and delta_variates:
@@ -1403,6 +1486,12 @@ def run_federation(
             record[f"task_loss_{sid}"] = round(round_losses.get(sid, {}).get("task", 0.0), 4)
             record[f"adv_loss_{sid}"]  = round(round_losses.get(sid, {}).get("adv", 0.0), 4)
 
+            if m["auroc"] > ckpt_best_auroc[sid]:
+                ckpt_best_auroc[sid] = m["auroc"]
+                ckpt_best_round[sid] = rnd
+                ckpt_best_state[sid] = {k: v.detach().cpu().clone()
+                                         for k, v in client.state_dict().items()}
+
         round_records.append(record)
 
         if rnd % max(1, args.rounds // 10) == 0 or rnd == args.rounds:
@@ -1412,6 +1501,13 @@ def run_federation(
             )
             print(f"    Round {rnd:3d}/{args.rounds}  |  {aurocs}")
 
+    print("  ── Restoring each site to its own best-checkpoint round ──")
+    for sid, client in clients.items():
+        if ckpt_best_state[sid] is not None:
+            client.load_state_dict(ckpt_best_state[sid])
+        marker = " (== final round)" if ckpt_best_round[sid] == args.rounds else " <-- earlier than final round"
+        print(f"    {sid}: best round={ckpt_best_round[sid]}  best_auroc={ckpt_best_auroc[sid]:.4f}{marker}")
+
     # ── head fine-tuning (FedAdapt and FedAdapt-Proto only) ────────────────
     if method in ("fedadapt", "fedadaptproto"):
         finetune_heads(clients, sites, args.finetune_epochs, args.lr)
@@ -1420,8 +1516,22 @@ def run_federation(
     final_rows = []
     for sid, client in clients.items():
         m = evaluate_site(client, sites[sid])
-        final_rows.append({"site_id": sid, **m})
+        final_rows.append({
+            "site_id": sid,
+            "best_checkpoint_round": ckpt_best_round[sid],
+            **m,
+        })
     final_df = pd.DataFrame(final_rows)
+
+    print(f"  [DEBUG-GC] final check: args.track_gradient_conflict="
+          f"{args.track_gradient_conflict!r}, len(gradient_conflict_records)="
+          f"{len(gradient_conflict_records)}")
+    if args.track_gradient_conflict and gradient_conflict_records:
+        pd.DataFrame(gradient_conflict_records).to_csv(
+            output_dir / "gradient_conflict.csv", index=False
+        )
+        print(f"  [gradient-conflict] saved gradient_conflict.csv "
+              f"({len(gradient_conflict_records)} rows)")
 
     return final_df, round_records
 
@@ -1488,6 +1598,20 @@ def parse_args() -> argparse.Namespace:
                              "(legacy v1 behavior — always run all local_epochs). "
                              "Restores best local checkpoint before contributing "
                              "to global aggregation. Applies to fedadapt/fedadaptproto only.")
+
+    # Site_D root-cause diagnostic: per-round cosine similarity between each
+    # site's local body-weight update and the resulting aggregate update.
+    # Applies to ALL methods (the SharedBody aggregation mechanism is
+    # identical across all of them) but intended primarily for fedavg first,
+    # since it has no prototype/GRL/scaffold-variate complexity to confound
+    # the read. Off by default — adds per-round compute + a new output file.
+    p.add_argument("--track_gradient_conflict", action="store_true",
+                        help="If set, save gradient_conflict.csv: per-round, "
+                             "per-site cosine similarity between that site's "
+                             "local body-weight delta and the resulting "
+                             "aggregate delta. Low/negative similarity for a "
+                             "site indicates its local update is fighting the "
+                             "direction the aggregate actually moved in.")
 
     # v2.2: multi-cluster prototypes per class (FedAdapt-Proto only)
     p.add_argument("--n_clusters", type=int, default=1,
