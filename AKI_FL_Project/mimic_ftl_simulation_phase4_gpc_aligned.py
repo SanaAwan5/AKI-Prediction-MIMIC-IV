@@ -170,6 +170,42 @@ SITE_SPECIFIC_DX_COLUMNS: Dict[str, List[str]] = {
     ]],
 }
 
+# Site-specific LAB features -- confirmed already extracted in the cohort
+# notebook's Step 8 (LAB_ITEMIDS dict, real verified MIMIC-IV itemids, not
+# new BigQuery work) but never wired into shared98_core. Cross-referenced
+# directly against GPC's real *_dedup_rf_feature_list.csv per-site LAB rows
+# (feature_class=='LAB', in_shared98=='no'): all 3 are exact clinical-name
+# matches -- "Bicarbonate", "RBC Distribution Width", "Lymphocyte Percent"
+# -- appearing in exactly these 5 sites and absent from UofU's real list,
+# which independently matches the earlier mimic_gpc_feature_alignment.csv
+# finding that UofU is missing rdw/lymphocyte_pct/bicarbonate/sodium from
+# the 24 originally-mapped GPC features. Column names use the SAME base
+# names as LAB_ITEMIDS keys (bicarbonate, rdw, lymphocyte_pct), so
+# resolve_feature_columns' existing prefix-matching picks up their
+# _min/_max/_mean/_most_recent/_hours_since stat columns automatically --
+# no extraction changes needed, this data is already sitting in the cohort
+# CSV. A larger pool of additional site-specific labs (71 unique GPC terms
+# found in the real per-site lists, only 3 of which were already extracted)
+# remains unmapped -- see mimic_gpc_feature_alignment.csv and the module
+# docstring note below for the path to add the rest, which DOES require new
+# notebook/BigQuery work, unlike this dict.
+# Site-specific LAB features. First 3 columns per site (bicarbonate, rdw,
+# lymphocyte_pct) were already extracted (Step 8's original LAB_ITEMIDS,
+# real verified itemids) -- zero new BigQuery work. The rest require the
+# notebook's NEW Section 5D (LIKE-pattern label matching against
+# d_labitems, verification-first -- see notebook comments) to have been
+# run; this dict degrades gracefully (same pattern as DX columns) if that
+# hasn't happened yet -- df_source just won't have those columns, and
+# resolve_columns_by_prefix silently returns fewer matches, no crash.
+SITE_SPECIFIC_LAB_COLUMNS: Dict[str, List[str]] = {
+    "sim_KUMC": ["bicarbonate", "rdw", "lymphocyte_pct", "alkaline_phosphatase", "alt", "ast", "band_neutrophils", "creatine_kinase", "esr", "ferritin", "free_t4", "hematocrit", "inr", "mch", "mchc_rbc", "mcv_rbc", "metamyelocytes_leukocytes", "neutrophil_percent", "non_hdl_cholesterol", "oxygen_saturation", "po2_blda", "urine_ph", "urine_sodium"],
+    "sim_MCW": ["bicarbonate", "rdw", "lymphocyte_pct", "activated_clotting_time", "alkaline_phosphatase", "alt", "ast", "co2_bldv_scnc", "creatine_kinase", "eosinophil_bld_manual", "eosinophil_nfr_bld", "est_average_glucose_bld_ghb_est_mcnc", "ferritin", "hematocrit", "imm_granulocytes_nfr_bld", "inr", "ldh_serpl_l_to_p_ccnc", "lymphocytes_nfr_bld", "mch", "mchc_rbc", "mcv_rbc", "monocytes_nfr_bld", "neutrophil_percent", "neutrophils_bld", "non_hdl_cholesterol", "oxygen_saturation", "po2_blda", "pt_bld", "urate", "urine_ph", "urine_sodium"],
+    "sim_UIOWA": ["bicarbonate", "rdw", "lymphocyte_pct", "alkaline_phosphatase", "alt", "amylase", "anion_gap_serpl_calculated_3ions_scnc", "aptt_bld", "ast", "band_neutrophils", "base_excess", "base_excess_blda_calc_scnc", "ca_i_bld_mcnc", "co2_bldv_scnc", "creatine_kinase", "eosinophil_bld_manual", "eosinophil_nfr_bld", "esr", "est_average_glucose_bld_ghb_est_mcnc", "ethanol", "ferritin", "free_t4", "gamma_gt", "hematocrit", "imm_granulocytes_nfr_bld", "inr", "lymphocytes_nfr_bld", "mch", "mchc_rbc", "mcv_rbc", "metamyelocytes_leukocytes", "monocytes_nfr_bld", "myelocytes_leukocytes", "neutrophil_percent", "neutrophils_bld", "neuts_seg_bld", "non_hdl_cholesterol", "nrbc_bld_rto", "osmolality", "pco2_temp_adj_blda", "ph_temp_adj_blda", "pmv_bld_rees_ecker", "po2_blda", "po2_temp_adj_bldv", "prealbumin", "pt_bld", "tsh_serpl_dl_0_05_miu_l_acnc", "urine_osmolality", "urine_ph", "urine_sodium", "urine_specific_gravity", "variant_lymphs_bld_manual"],
+    "sim_UPITT": ["bicarbonate", "rdw", "lymphocyte_pct", "alkaline_phosphatase", "alt", "ast", "base_excess_blda_calc_scnc", "eosinophil_nfr_bld", "esr", "ferritin", "hematocrit", "inr", "mch", "mchc_rbc", "mcv_rbc", "monocytes_nfr_bld", "osmolality", "oxygen_saturation", "po2_blda", "prealbumin", "urine_ph", "urine_sodium"],
+    "sim_UTSW": ["bicarbonate", "rdw", "lymphocyte_pct", "activated_clotting_time", "alkaline_phosphatase", "alt", "amylase", "anion_gap_serpl_calculated_3ions_scnc", "aptt_bld", "ast", "base_excess_blda_calc_scnc", "creatine_kinase", "eosinophil_bld_manual", "ferritin", "free_t4", "haptoglobin", "imm_granulocytes_nfr_bld", "mch", "mchc_rbc", "mcv_rbc", "metamyelocytes_leukocytes", "myelocytes_leukocytes", "non_hdl_cholesterol", "oxygen_saturation", "po2_blda", "prealbumin", "reticulocyte_percent", "urate", "urine_osmolality", "urine_protein", "urine_sodium"],
+    "sim_UofU": ["albumin_serpl_elph_mcnc", "alkaline_phosphatase", "alt", "ast", "band_neutrophils", "creatine_kinase", "est_average_glucose_bld_ghb_est_mcnc", "hematocrit", "inr", "ldh_serpl_l_to_p_ccnc", "neutrophils_nfr_fld", "non_hdl_cholesterol", "prealbumin", "urate", "urine_ph", "variant_lymphocytes"],
+}
+
 # ─── FEATURE GROUPS ───────────────────────────────────────────────────────────
 
 # GPC-ALIGNED: feature names are prefixes matching all stat-suffix variants
@@ -328,11 +364,21 @@ def resolve_feature_columns(df: pd.DataFrame, groups: List[str]) -> List[str]:
     for g in groups:
         wanted_prefixes.extend(FEATURE_GROUPS.get(g, []))
 
+    return resolve_columns_by_prefix(df, wanted_prefixes)
+
+
+def resolve_columns_by_prefix(df: pd.DataFrame, prefixes: List[str]) -> List[str]:
+    """
+    Same matching logic as resolve_feature_columns, but takes raw base-name
+    prefixes directly instead of FEATURE_GROUPS keys. Used for
+    SITE_SPECIFIC_LAB_COLUMNS, which holds actual column-name prefixes
+    (e.g. "bicarbonate") rather than group names to look up.
+    """
     matched = []
     for col in df.columns:
         if not pd.api.types.is_numeric_dtype(df[col]):
             continue   # skip string/object columns
-        for prefix in wanted_prefixes:
+        for prefix in prefixes:
             if col == prefix or col.startswith(prefix + "_"):
                 if col not in matched:
                     matched.append(col)
@@ -631,9 +677,7 @@ def plot_simulation_summary(
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     fig.suptitle(
-        f"Phase III simulation summary (GPC-aligned)  |  α={alpha}  γ={gamma}\n"
-        f"sim_MCW local dominance: equal N (~33k), richest features (159) → "
-        f"local model expected to outperform global",
+        f"Phase IV simulation summary — 6 real GPC sites, uniform shared98 baseline  |  α={alpha}  γ={gamma}",
         fontsize=11,
     )
 
@@ -685,7 +729,7 @@ def plot_simulation_summary(
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2,
                 str(f), ha="center", va="bottom", fontsize=9)
     ax.set_ylabel("Number of features")
-    ax.set_title("Feature count per site\n(sim_MCW has most features → local dominance)")
+    ax.set_title("Feature count per site\n(uniform shared98 baseline + each site's own DX codes)")
 
     # Legend for roles
     patches = [mpatches.Patch(color=c, label=r.replace("_", " ").title())
@@ -835,6 +879,23 @@ def run_simulation(
         elif site_dx_cols:
             print(f"     WARNING: {len(site_dx_cols)} site-specific DX codes expected "
                   f"but none found in data — run notebook Section 5C first")
+
+        # 1c. Add this site's own site-specific LAB features, if the base
+        # columns exist in df_source (they already do -- see
+        # SITE_SPECIFIC_LAB_COLUMNS docstring, Step 8's LAB_ITEMIDS already
+        # extracts bicarbonate/rdw/lymphocyte_pct). Uses the same prefix
+        # matching as shared98_core, just applied to a site-specific base
+        # name list instead of a universal one.
+        site_lab_base = SITE_SPECIFIC_LAB_COLUMNS.get(site_id, [])
+        site_lab_cols = resolve_columns_by_prefix(df_source, site_lab_base)
+        available_site_lab = [c for c in site_lab_cols if c not in feat_cols]
+        if available_site_lab:
+            feat_cols = feat_cols + available_site_lab
+            print(f"     + {len(available_site_lab)} site-specific LAB columns "
+                  f"({', '.join(site_lab_base)})")
+        elif site_lab_base:
+            print(f"     WARNING: site-specific LAB base names {site_lab_base} "
+                  f"expected but no matching columns found in data")
 
         if not feat_cols:
             print(f"     WARNING: no matching feature columns found — skipping")
