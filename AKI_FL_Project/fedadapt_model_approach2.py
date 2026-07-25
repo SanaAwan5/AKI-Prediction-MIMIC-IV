@@ -674,6 +674,7 @@ def fedadapt_loss(
     n_site_pos:    Optional[int] = None,
     n_site_neg:    Optional[int] = None,
     proto_tau:     float = 3000.0,
+    adv_class_weight: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Total FedAdapt loss for one local step. Supports an optional
@@ -731,6 +732,13 @@ def fedadapt_loss(
                        round (for reliability weighting; None = unweighted)
         n_site_neg:    total AKI-negative sample count for this site
         proto_tau:     smoothing constant for reliability weighting
+        adv_class_weight: optional per-class weight [n_groups] for the
+                       discriminator's cross-entropy (inverse-frequency,
+                       sklearn-balanced-style). None (default) preserves
+                       the exact original unweighted behavior -- this
+                       parameter did not exist before and no existing
+                       caller passes it, so nothing changes unless a
+                       caller explicitly opts in.
 
     Returns:
         total_loss, task_loss, adv_loss, proto_loss (all scalar tensors;
@@ -739,7 +747,7 @@ def fedadapt_loss(
     task_loss = F.binary_cross_entropy_with_logits(
         task_logit, labels.float(), pos_weight=pos_weight
     )
-    adv_loss  = F.cross_entropy(group_logits, group_labels)
+    adv_loss  = F.cross_entropy(group_logits, group_labels, weight=adv_class_weight)
     # FIX: previously `total = task_loss - lambda_adv * adv_loss`. That extra
     # explicit negation, combined with the GRL's own internal negation in
     # _GradientReversalFn.backward(), doubly inverted the intended dynamic:
