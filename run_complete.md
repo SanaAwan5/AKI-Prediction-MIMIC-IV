@@ -1,4 +1,4 @@
-# Phase 2 (GPC-Aligned) — Complete Run Instructions
+# Phase 2 (GPC-Aligned): Run Instructions
 
 Unlike `QUICK_RUN.md` (abbreviated, one representative command per
 step), this file lists every individual run explicitly so it can be
