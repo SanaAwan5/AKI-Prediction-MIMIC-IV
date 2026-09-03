@@ -485,17 +485,21 @@ chmod +x run_phase1_grid_v23.sh
 ./run_phase1_grid_v23.sh
 ```
 
-**Result, primary condition (α=0.3, γ=0.75), n=15 per method:**
+**Result, full 20-condition grid, n=300 per method:**
 
 | Method | Mean ΔAUROC | SD |
 |---|---|---|
-| FedAdaptProto v2.3 (manual K=2) | +0.0471 | 0.0098 |
-| FedAvg | +0.0455 | 0.0106 |
-| FedProx | +0.0451 | 0.0108 |
-| FedAdapt | +0.0433 | 0.0122 |
-| SCAFFOLD | +0.0425 | 0.0104 |
+| FedAdaptProto v2.3 (manual K=2) | +0.0502 | 0.0104 |
+| FedAvg | +0.0472 | 0.0105 |
+| FedProx | +0.0471 | 0.0106 |
+| FedAdapt | +0.0460 | 0.0112 |
+| SCAFFOLD | +0.0443 | 0.0107 |
 
-Full-grid confirmation (all 20 conditions) pending at time of writing.
+FedAdaptProto v2.3's edge over each baseline is small but statistically
+significant at this sample size (paired t-test, n=300, p<0.0001 for
+each baseline). Note this differs from the single-condition result
+(primary condition alone, n=15, p=0.297 vs. FedAvg) — the effect is real
+but only reaches significance with the full grid's statistical power.
 
 ---
 
@@ -531,19 +535,22 @@ Section 8 for the root-cause fix that produced this.**
 (FedAdaptProto v2.3 comparisons); v2.5's number is not directly
 paired-tested against v2.3 here but is well within v2.3's range.
 
-## Final confirmed numbers (Phase 1, primary condition α=0.3/γ=0.75, post-fix)
+## Final confirmed numbers (Phase 1, full 20-condition grid, post-fix)
 
 | Method | Mean ΔAUROC | SD |
 |---|---|---|
-| FedAdaptProto v2.3 (manual K=2) | +0.0471 | 0.0098 |
-| FedAvg | +0.0455 | 0.0106 |
-| FedProx | +0.0451 | 0.0108 |
-| FedAdapt | +0.0433 | 0.0122 |
-| SCAFFOLD | +0.0425 | 0.0104 |
-| FedAdaptProto v2.5 (auto-K, bestckpt-fixed) | −0.0044 | 0.0104 |
+| FedAdaptProto v2.3 (manual K=2) | +0.0502 | 0.0104 |
+| FedAvg | +0.0472 | 0.0105 |
+| FedProx | +0.0471 | 0.0106 |
+| FedAdapt | +0.0460 | 0.0112 |
+| SCAFFOLD | +0.0443 | 0.0107 |
+| FedAdaptProto v2.5 (auto-K, bestckpt-fixed) | −0.0023 | 0.0096 |
 
-Full 20-condition-grid confirmation for v2.5 alone: −0.0023 ± 0.0096
-(n=300). v2.3 + baselines full-grid confirmation pending.
+n=300 per method (3 seeds × 20 conditions × 5 sites). All six methods
+now fully confirmed at full-grid scope. FedAdaptProto v2.3's edge over
+each baseline is small but statistically significant at this sample
+size (p<0.0001 throughout) — not significant at the single-condition
+level alone (n=15, p=0.297 vs. FedAvg).
 
 ---
 
