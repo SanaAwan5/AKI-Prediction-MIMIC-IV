@@ -26,10 +26,11 @@ block) — this project has repeatedly found silent `--data_dir`/`--alpha`/
 **Phase 1 (clinical-archetype):**
 - `aki_anchor_based_24h_lookback.csv` — the leakage-fixed master CSV for
   this cohort (94 columns, no BMI, smaller lab panel).
-- `mimic_ftl_simulation_phase1_archetype_post_leakage.py`
+- `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py` — **use
+  this, not** the original `mimic_ftl_simulation_phase1_archetype_post_leakage.py`
   (see Section 9 for why).
 - `fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py`
-- `fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py` — **use this,
+- `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py` — **use this,
   not** the original `fedadapt_train_approach2_v2_5_realarch.py` (see
   Section 9).
 - `fedadapt_model_approach2.py` — shared model definitions both Phase 1
@@ -403,7 +404,7 @@ archetype: −0.0945). Both were traced to the same two causes:
    `--local_epochs 1` were not comparing like with like.
 
 Fixed scripts: `fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py`
-(GPC-aligned) and `fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py`
+(GPC-aligned) and `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py`
 (archetype). Both add Phase 1 best-checkpoint tracking, identical in
 structure to Phase 2's own; behavior is unchanged from the original
 script when `--local_epochs` is left unset, so `--local_epochs 1` must
@@ -501,7 +502,7 @@ Full-grid confirmation (all 20 conditions) pending at time of writing.
 ## 11. v2.5 (auto-K, bestckpt-fixed), full grid — 60 runs
 
 Use `run_phase1_grid_v25_bestckpt_fix.sh` (1 method × 20 conditions × 3
-seeds), which calls `fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py`
+seeds), which calls `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py`
 with `--local_epochs 1` explicitly set.
 
 ```bash
@@ -582,7 +583,7 @@ automatically to every run in Part A.
   specifically)
 - `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py`
 - `fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py`
-- `fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py`
+- `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py`
 - `run_phase1_grid_v23.sh`
 - `run_phase1_grid_v25_bestckpt_fix.sh`
 
@@ -611,7 +612,7 @@ git add AKI_Anchor_Based_Approach2_phase1_post_leakage.ipynb \
         aki_anchor_based_24h_lookback.csv \
         mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py \
         fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py \
-        fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py \
+        fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py \
         run_phase1_grid_v23.sh \
         run_phase1_grid_v25_bestckpt_fix.sh \
         fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py \
