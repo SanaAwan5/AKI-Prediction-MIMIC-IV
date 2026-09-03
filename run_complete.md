@@ -26,8 +26,7 @@ block) — this project has repeatedly found silent `--data_dir`/`--alpha`/
 **Phase 1 (clinical-archetype):**
 - `aki_anchor_based_24h_lookback.csv` — the leakage-fixed master CSV for
   this cohort (94 columns, no BMI, smaller lab panel).
-- `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py` — **use
-  this, not** the original `mimic_ftl_simulation_phase1_archetype_post_leakage.py`
+- `mimic_ftl_simulation_phase1_archetype_post_leakage.py`
   (see Section 9 for why).
 - `fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py`
 - `fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py` — **use this,
