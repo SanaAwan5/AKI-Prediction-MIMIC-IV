@@ -813,25 +813,6 @@ git add phase1_archetype_cohort.ipynb \
 git commit -m "Add corrected pipeline (KDIGO baseline-SCr/CKD-exclusion fix + disjoint cross-site sampling fix, both cohorts) at repo root"
 ```
 
-**The following old-named files, confirmed present at the repo root as
-of this update, are superseded by the files above and should be
-removed in the same push:**
-
-```bash
-git rm fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed.py
-git rm fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improvement.py
-git rm fedadapt_train_approach2_v2_5_grouptest_v2_leakage_fixed.py
-git rm fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py
-git rm fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py
-git rm mimic_ftl_simulation_phase1_archetype_post_leakage.py
-git rm mimic_ftl_simulation_phase4_gpc_aligned_post_leakage.py
-git rm run_complete.md
-
-git commit -m "Remove superseded old-named root-level files, replaced by the renamed files above"
-
-git push origin main
-```
-
 | Old root-level file | Superseded by |
 |---|---|
 | `fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed.py` (older, pre-`_improvement`) | — (dead end) |
