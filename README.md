@@ -6,7 +6,6 @@
 | Total patients (both cohorts, identical population) | **114,720** |
 | Train split | 91,776 (80%) |
 | Test split | 22,944 (20%) |
-| `subject_id`/`hadm_id` relationship | 1:1 (confirmed — one encounter per patient, the last admission only) |
 | Phase 1 vs. Phase 2 patient sets | Identical (same 114,720 patients, same per-patient train/test assignment in both files) |
 | Phase 1 site count / N per site | 5 sites × **17,000** (85,000 of 91,776 train patients used, 6,776 buffer) |
 | Phase 2 site count / N per site | 6 sites × **14,000** (84,000 of 91,776 train patients used, 7,776 buffer) |
