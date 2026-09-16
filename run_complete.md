@@ -770,6 +770,45 @@ and v2.5 remains statistically indistinguishable from the rest
 
 ---
 
+## 12. FL Gain Index computation (post-training analysis)
+
+Once both cohorts' training is confirmed (Sections 3–5, 10–11, and the
+"Final confirmed numbers" tables above), the FL Gain Index and its
+correlation with observed federated gain can be computed directly with
+`compute_flgi_correlation.py` — a standalone script that reproduces the
+formula embedded in the v2.5 training scripts
+(`compute_fl_gain()`/`compute_fl_gain_revised()`), without needing to
+re-run any training.
+
+**Input**: a CSV with columns `site_id, n, n_features, prevalence,
+observed_delta_auroc` — one row per site, using the confirmed N, feature
+count, AKI prevalence, and observed ΔAUROC from the tables above (Table 2
++ Table 8 for GPC-aligned; Table 1 + Table 6 for archetype).
+
+```bash
+python3 compute_flgi_correlation.py example_gpc_aligned_sites.csv
+python3 compute_flgi_correlation.py example_archetype_sites.csv
+```
+
+**Confirmed output** (matches the manuscript's Table 10 and the
+archetype-cohort correlation exactly):
+
+| Cohort | Pearson r | Spearman ρ | n |
+|---|---|---|---|
+| GPC-aligned | 0.457 (p=0.363) | 0.486 (p=0.329) | 6 |
+| Archetype (primary condition) | 0.637 (p=0.247) | 0.700 (p=0.188) | 5 |
+
+Neither reaches statistical significance at these sample sizes (n=6
+would need \|r\| ≥ 0.811, n=5 would need \|r\| ≥ 0.878 to reach p<0.05 —
+printed automatically by the script for whatever n is passed in). Both
+`example_gpc_aligned_sites.csv` and `example_archetype_sites.csv` are
+included as regression tests: re-running the script against them should
+always reproduce the numbers above exactly. Pass `--csv-out <path>` to
+additionally write the full per-site decomposition (S_i, I_i, F_i, FLGI,
+role) to a CSV file.
+
+---
+
 ## GPC-vitals exclusion (applies to every Phase 2 run above)
 
 Both training scripts exclude `heart_rate`, `resp_rate`, `temperature`,
@@ -813,6 +852,9 @@ copy.
 | `check_overlap.py` | *(unchanged)* |
 | `HOW_TO_CHECK_OVERLAP.txt` | *(unchanged)* |
 | `record_train_test_numbers.py` | *(unchanged)* |
+| `compute_flgi_correlation.py` | *(unchanged)* |
+| `example_gpc_aligned_sites.csv` | *(unchanged)* |
+| `example_archetype_sites.csv` | *(unchanged)* |
 | `run_complete.md` | *(unchanged)* |
 
 **Phase 2/4 (GPC-aligned) pipeline:**
@@ -852,6 +894,10 @@ copy.
   overlap verification
 - `record_train_test_numbers.py` — reports/verifies the train/test split
   and cross-file patient-population consistency from the two master CSVs
+- `compute_flgi_correlation.py`, `example_gpc_aligned_sites.csv`,
+  `example_archetype_sites.csv` — standalone FL Gain Index computation
+  and correlation (Section 12); the two example CSVs double as
+  regression tests, confirmed to reproduce r=0.457/r=0.637 exactly
 - This file (`run_complete.md`)
 
 **Leakage check: resolved, confirmed clean, both cohorts.** `feature_cutoff`
@@ -909,9 +955,12 @@ git add aki_anchor_based_24h_lookback.csv \
         check_overlap.py \
         HOW_TO_CHECK_OVERLAP.txt \
         record_train_test_numbers.py \
+        compute_flgi_correlation.py \
+        example_gpc_aligned_sites.csv \
+        example_archetype_sites.csv \
         run_complete.md
 
-git commit -m "KDIGO baseline-SCr/CKD-exclusion fix + disjoint cross-site sampling fix (both cohorts); Phase 1 training re-confirmed on corrected data"
+git commit -m "KDIGO baseline-SCr/CKD-exclusion fix + disjoint cross-site sampling fix (both cohorts); Phase 1 training re-confirmed on corrected data; add standalone FL Gain Index computation"
 git push origin main
 ```
 
@@ -946,3 +995,4 @@ git rm AKI_Anchor_Based_Approach2_phase1_post_leakage.ipynb  # or whatever the o
 ```
 (substitute whatever old names are actually present in the repo — check
 with `git ls-files` if unsure).
+
