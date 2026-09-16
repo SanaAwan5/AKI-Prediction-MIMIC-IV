@@ -1,36 +1,19 @@
-*.csv aki_features_iid.csv simulated_sites/ fl_results/ fl_results_v2/
+flamby_env/
+# Virtual environments
+venv/
+env/
+ENV/
+flamby_env/
+*.venv
+
 # Python
 __pycache__/
-*.pyc
-*.pyo
-.env
+*.py[cod]
+*$py.class
+*.so
+.Python
 
-# Results / outputs (optional — remove if you want to track these)
-fl_results/
-*.png
-*.json
-
-# OS
-.DS_Store
-AKI_FL_Project/flamby_env/
-flamby_env/
-flamby_env/
-AKI_FL_Project/flamby_env/
-flamby_env/
-data/
-results/
-*.csv
-*.zip
-phase2_sites_approach2/
-alpha_results/
-phase2_results/
-cached_creatinine_approach2.csv
-phase2_sites/
-fl_results_v2/
-phase2_sites_approach2/
-alpha_results/
-phase2_results/
-cached_creatinine_approach2.csv
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
