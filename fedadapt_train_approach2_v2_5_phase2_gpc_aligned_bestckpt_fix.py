@@ -30,6 +30,7 @@ Usage:
 
 import argparse
 import os
+import re
 import csv
 import copy
 import json
@@ -907,7 +908,24 @@ def compute_or_load_shared_local_baseline(
 
     Returns (local_aurocs: {site_id: mean_auroc}, cache_df: pd.DataFrame).
     """
-    cache_path = os.path.join(data_dir, "local_baseline_fl_gain_revised.csv")
+    # [FIX] Same issue as the archetype (Phase 1) script: this cache
+    # previously lived at a single, condition-independent path despite
+    # the docstring's claim of being "keyed by alpha/gamma condition" --
+    # it was not. Parsing the condition directly from site_files (already
+    # filtered to just this condition's real files) and baking it into
+    # the cache filename means each (alpha, gamma) gets its own cache and
+    # can never collide with another condition's, even when all
+    # conditions' data lives in the same flat data_dir.
+    _cond_match = re.search(r"_alpha([\d.]+)_gamma([\d.]+)\.csv$", site_files[0]) if site_files else None
+    if _cond_match:
+        _cond_suffix = f"_alpha{_cond_match.group(1)}_gamma{_cond_match.group(2)}"
+    else:
+        _cond_suffix = ""
+        print("  [baseline] WARNING: could not parse alpha/gamma from "
+              f"site_files[0]={site_files[0] if site_files else '<empty>'!r} -- "
+              "falling back to a condition-independent cache path, which may "
+              "collide with other conditions run against this same data_dir.")
+    cache_path = os.path.join(data_dir, f"local_baseline_fl_gain_revised{_cond_suffix}.csv")
 
     if os.path.exists(cache_path) and not force:
         print(f"  [baseline] cache found -> {cache_path} "

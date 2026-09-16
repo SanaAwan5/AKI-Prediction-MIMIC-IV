@@ -682,9 +682,23 @@ def run_fedadaptproto(args, data_dir, output_dir):
 
     # ── Load data ──────────────────────────────────────────────────────────────
     print("Loading site data...")
+    # [FIX] The original filter below matched every site_*/sim_* CSV in
+    # data_dir regardless of alpha/gamma. That's harmless when data_dir
+    # contains only one condition's files, but the disjoint-sites
+    # simulation script writes ALL conditions into the same flat
+    # directory (site_A_alpha0.1_gamma0.0.csv, site_A_alpha0.3_gamma0.75.csv,
+    # ... all together) -- so this was silently loading every condition's
+    # data as if each (site, alpha, gamma) combination were its own
+    # separate site, training a ~100-site federation instead of the
+    # intended 5, for every single grid job regardless of which specific
+    # alpha/gamma it was told to run. Now filters to exactly the
+    # requested condition first, matching how the v2.3 script
+    # (fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py)
+    # already does this correctly.
+    suffix = f"_alpha{args.alpha}_gamma{args.gamma}.csv"
     site_files = sorted([
         f for f in os.listdir(data_dir)
-        if f.endswith(".csv") and "fl_gain_index" not in f
+        if f.endswith(suffix) and "fl_gain_index" not in f
         and (f.startswith("site_") or f.startswith("sim_"))
         # site_* = Phase 3 archetype naming (site_A.csv, ...)
         # sim_*  = Phase 4 real-GPC-site naming (sim_KUMC_alpha0.5_gamma0.75.csv, ...)
@@ -692,7 +706,24 @@ def run_fedadaptproto(args, data_dir, output_dir):
         # empty site list (and a downstream max()-of-empty-sequence crash
         # in compute_fl_gain) on any Phase 4 data directory.
     ])
-    site_ids = [os.path.splitext(f)[0] for f in site_files]   # e.g. ["site_A", ...]
+    if not site_files:
+        # Fallback: no alpha/gamma-suffixed files found (e.g. data_dir
+        # holds unsuffixed site_A.csv-style files for a single condition
+        # already separated into its own directory). Falls back to the
+        # original, unfiltered behavior in that case only.
+        site_files = sorted([
+            f for f in os.listdir(data_dir)
+            if f.endswith(".csv") and "fl_gain_index" not in f
+            and (f.startswith("site_") or f.startswith("sim_"))
+        ])
+        if site_files:
+            print(f"  [warning] no files matched suffix '{suffix}'; falling back to "
+                  f"all {len(site_files)} site_*/sim_* CSVs in {data_dir}. If this "
+                  f"directory holds more than one condition's data, this will "
+                  f"incorrectly merge them into one run -- verify data_dir contains "
+                  f"only the intended condition, or that filenames carry the "
+                  f"expected alpha/gamma suffix.")
+    site_ids = [os.path.splitext(f)[0] for f in site_files]   # e.g. ["site_A_alpha0.1_gamma0.0", ...]
 
     loaders_tr, loaders_te = {}, {}
     input_dims, prevalences, feat_cols_map = {}, {}, {}
