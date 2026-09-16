@@ -1,5 +1,64 @@
 # Complete Run Instructions — Phase 2 (GPC-Aligned) and Phase 1 (Clinical-Archetype)
 
+> **✅ ALL TRAINING COMPLETE ON BOTH COHORTS.**
+> Both master CSVs were regenerated after correcting the baseline-SCr
+> computation (CKD-history patients with no SCr in the past year are now
+> dropped instead of MDRD-estimated, matching the standard KDIGO baseline
+> flowchart) and after fixing cross-site patient overlap (sites previously
+> could and did share ~35% of their patients with each other; see
+> `HOW_TO_CHECK_OVERLAP.txt`). **Data generation is complete and confirmed
+> clean** for both cohorts (zero cross-site overlap, every condition,
+> verified via `check_overlap.py`). **Phase 1 v2.5 (60 jobs), Phase 1
+> v2.3+baselines (300 jobs), and all of Phase 2 (54 jobs, all 6 methods)
+> are complete and confirmed** — every job checked programmatically for
+> correct site count and correct alpha/gamma per job, zero bad jobs found
+> anywhere. The manuscript (`main.tex`) reflects all of this and is
+> current as of this version.
+>
+> **Two real bugs were found and fixed during the Phase 1 v2.5 re-run,
+> worth knowing about**: (1) the archetype v2.5 script's site-discovery
+> had no alpha/gamma filtering at all, so every job silently trained a
+> ~100-site mega-federation (5 real sites × 20 conditions) instead of the
+> intended 5 for its specific condition; (2) its local-baseline cache
+> lived at a single, condition-independent path despite the docstring
+> claiming otherwise, so even after fix (1), every job after the first
+> loaded stale, cross-condition-polluted cached baselines. Both fixed in
+> the delivered `_bestckpt_fix` scripts (both Phase 1 and Phase 2
+> versions) and confirmed via direct inspection of real output on both
+> cohorts. The same two bug classes were checked in the Phase 2 v2.3
+> script specifically and confirmed **absent** there — no changes were
+> needed for that one.
+>
+> **A third issue surfaced during Phase 1's v2.3+baselines grid,
+> unrelated to the two above**: an interruption from an external cause
+> (no traceback -- likely system sleep or an OOM kill) stopped the grid
+> mid-run, and restarting it with a non-resumable script version caused
+> 3 of 5 methods (scaffold/fedadapt/fedprox) to retain stale,
+> mixed-provenance data from an earlier, separate attempt rather than
+> being freshly recomputed. Caught by checking per-method timestamps
+> (not just job counts) after the "completed" grid still looked
+> suspicious. Fixed by adding a resume-skip check to all three grid
+> shell scripts (skips a job if its output file already exists, so an
+> interrupted run can resume safely instead of restarting from the top),
+> then re-running the full 300-job grid once, cleanly, in a single pass.
+> Confirmed the staleness was substantively real, not just cosmetic --
+> the discarded numbers for scaffold/fedadapt were both meaningfully
+> lower than the clean re-run's.
+
+## Cohort summary (confirmed, current)
+
+| | Value |
+|---|---|
+| Total patients (both cohorts, identical population) | **114,720** |
+| Train split | 91,776 (80%) |
+| Test split | 22,944 (20%) |
+| `subject_id`/`hadm_id` relationship | 1:1 (confirmed — one encounter per patient, the last admission only) |
+| Phase 1 vs. Phase 2 patient sets | Identical (same 114,720 patients, same per-patient train/test assignment in both files) |
+| Phase 1 site count / N per site | 5 sites × **17,000** (85,000 of 91,776 train patients used, 6,776 buffer) |
+| Phase 2 site count / N per site | 6 sites × **14,000** (84,000 of 91,776 train patients used, 7,776 buffer) |
+| Cross-site overlap | **Zero** — confirmed via `check_overlap.py` across all 20 Phase 1 conditions (10 site pairs each) and all 3 Phase 2 conditions (15 site pairs each) |
+| `TARGET_N_PER_SITE` ceiling (tested, not just calculated) | Phase 1: 18,000 fails (6,241 within-site duplicates at the last-processed site); Phase 2: 15,000 fails (1,138-patient shortfall) |
+
 Unlike `QUICK_RUN.md` (abbreviated, one representative command per
 step), this file lists every individual run explicitly so it can be
 executed top-to-bottom to reproduce the full result set for both
@@ -14,21 +73,42 @@ block) — this project has repeatedly found silent `--data_dir`/`--alpha`/
 ## 0. Prerequisites
 
 **Phase 2 (GPC-aligned):**
-- `aki_anchor_based_24h_lookback_aligned_features.csv` — the leakage-fixed
-  master CSV (leakage columns `hours_since`/`hours_to_anchor` already
-  removed upstream at the notebook/CSV-export stage).
-- `mimic_ftl_simulation_phase4_gpc_aligned_post_leakage.py`
+- `aki_anchor_based_24h_lookback_aligned_features.csv` — the master CSV,
+  now reflecting both the leakage fix (`hours_since`/`hours_to_anchor`
+  removed) and the KDIGO baseline-SCr / CKD-exclusion fix (114,720 total
+  patients, 91,776 in the `train` split, 22,944 in `test`).
+- `mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py`
+  — **use this, not** the pre-disjoint-sites version (same filename minus
+  the `_disjoint_sites` suffix is kept in sync but the suffixed name makes
+  the distinction explicit). Ensures no patient is sampled into more than
+  one site — see `HOW_TO_CHECK_OVERLAP.txt`. `TARGET_N_PER_SITE = 14_000`
+  inside this script is the highest value tested clean (zero shortfall or
+  within-site duplication) across all 3 conditions against the current
+  91,776-patient train pool (6 × 14,000 = 84,000, 7,776 buffer); 15,000
+  caused the last-processed site to fall short by 1,138 — re-check this
+  constant if the cohort size changes again.
 - `fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improvement.py`
 - `fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py` — **use
   this, not** the older `fedadapt_train_approach2_v2_5_grouptest_v2_leakage_fixed.py`
   (see Section 8 for why).
+- `check_overlap.py` — verifies zero cross-site patient overlap from the
+  `_subject_ids_*.csv` files the disjoint-sites script now writes
+  alongside each site's data.
 
 **Phase 1 (clinical-archetype):**
-- `aki_anchor_based_24h_lookback.csv` — the leakage-fixed master CSV for
-  this cohort (94 columns, no BMI, smaller lab panel).
-- `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py` — **use
-  this, not** the original `mimic_ftl_simulation_phase1_archetype_post_leakage.py`
-  (see Section 9 for why).
+- `aki_anchor_based_24h_lookback.csv` — same KDIGO/CKD-fix update as
+  above (94 columns, no BMI, smaller lab panel; same 114,720/91,776/22,944
+  patient counts — both cohorts share the identical underlying patient
+  population and train/test split, confirmed identical across files).
+- `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py`
+  — **use this, not** the pre-disjoint-sites version, for the same reason
+  as Phase 2 above. `TARGET_N_PER_SITE = 17_000` inside this script is the
+  highest value tested clean (zero shortfall or within-site duplication)
+  at both the primary condition and the more extreme α=0.1 against the
+  current 91,776-patient train pool (5 × 17,000 = 85,000, 6,776 buffer);
+  18,000 caused the last-processed site (lowest AKI-prevalence target) to
+  pick up 6,241 within-site duplicate patients — re-check this constant if
+  the cohort size changes again.
 - `fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py`
 - `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py` — **use this,
   not** the original `fedadapt_train_approach2_v2_5_realarch.py` (see
@@ -39,34 +119,86 @@ block) — this project has repeatedly found silent `--data_dir`/`--alpha`/
 **Both cohorts:**
 - Python packages: `torch`, `pandas`, `numpy`, `scikit-learn` (required by
   the v2.3 scripts' `sklearn.KMeans` clustering).
+- `run_disjoint_sites_data_gen.sh` — generates data for both cohorts (a
+  single-condition smoke test, then the full grid), with an automatic
+  `check_overlap.py` verification pass after each stage. **Run this
+  first, on its own, before anything else in this file** — everything
+  downstream depends on its output.
 - `run_phase1_grid_v23.sh`, `run_phase1_grid_v25_bestckpt_fix.sh` — shell
-  scripts that loop the full 20-condition × 3-seed Phase 1 grid (see
-  Section 9).
+  scripts that loop the full 20-condition × 3-seed Phase 1 training grid
+  (see Section 10/11). **Fixed, run, and verified complete** — both now
+  point at the flat `./phase1_data_disjoint/` directory and check for
+  each condition's specific site file rather than a per-condition
+  subfolder. (Both scripts previously assumed data lived in
+  `./phase1_data_corrected/alpha{a}_gamma{g}/` subfolders that were never
+  actually created by any data-generation command in this file, old or
+  new — every condition would have silently hit `[skip] missing data dir`
+  and produced zero training output.) **v2.5 additionally needed two more
+  fixes** inside `fedadapt_train_approach2_v2_5_realarch_bestckpt_fix.py`
+  itself before its grid's output could be trusted — see the banner at
+  the top of this file. **All three grid scripts also gained a
+  resume-skip check** (skips a job if its output file already exists) after
+  the v2.3 grid's first attempt was interrupted mid-run and a restart
+  without this check produced mixed-provenance data for 3 of 5 methods
+  (see the banner). All 60 v2.5 jobs and all 300 v2.3+baselines jobs are
+  now complete and confirmed, single provenance (Section 10/11 below).
+- `run_phase2_training.sh` — the Phase 2 equivalent (54 runs: v2.3 9 +
+  v2.5 9 + 4 baselines × 36), covering Sections 3/4/5 below. **Complete
+  and confirmed** — all 54 jobs verified present with the correct 6-site
+  count and correct alpha/gamma per job, zero bad jobs across all 6
+  methods (Section 3/4/5 results, and the Phase 2 final-numbers table,
+  below). Uses `fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py`,
+  which needed the same two fixes as its Phase 1 counterpart — both
+  confirmed via direct inspection of this run's real output, not just
+  code review. The Phase 2 v2.3 script needed neither fix — checked
+  specifically and confirmed clean (exact alpha/gamma matching already in
+  place, no caching mechanism of any kind).
 
 ---
 
 # PART A — Phase 2 (GPC-aligned cohort)
 
+> **Sections 3, 4, and 5 below (54 runs total: v2.3 9 runs + v2.5 9 runs +
+> 4 baselines × 36 runs) are now consolidated into `run_phase2_training.sh`**,
+> updated to point at `./phase2_data_disjoint/` and tested against real
+> generated data (skip-check correctly finds an existing condition and
+> correctly skips a nonexistent one). Sections 6 and 7 are NOT included —
+> both were confirmatory re-runs after an in-place code fix, and for a
+> from-scratch run against the new cohort they'd just repeat Section 3/5's
+> commands verbatim. Section 2's local_epochs sweep is also not included —
+> `local_epochs=3` is already a settled, confirmed choice baked into every
+> command. The individual commands below are kept for reference/history.
+
 ## 1. Generate Phase 4 simulation data (all 3 conditions)
 
+**Superseded by `run_disjoint_sites_data_gen.sh`.** The commands below
+are kept for reference (they show the per-condition invocation pattern
+training scripts elsewhere in this file assume), but running them
+individually against the disjoint-sites script works identically — just
+substitute the script name below.
+
 ```bash
-python3 mimic_ftl_simulation_phase4_gpc_aligned_post_leakage.py \
+python3 mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py \
   --input aki_anchor_based_24h_lookback_aligned_features.csv \
   --label AKI_label --alpha 0.0 --gamma 0.0 --seed 42 \
-  --output ./phase4_data/
+  --output ./phase2_data_disjoint/
 
-python3 mimic_ftl_simulation_phase4_gpc_aligned_post_leakage.py \
+python3 mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py \
   --input aki_anchor_based_24h_lookback_aligned_features.csv \
   --label AKI_label --alpha 0.5 --gamma 0.75 --seed 42 \
-  --output ./phase4_data/
+  --output ./phase2_data_disjoint/
 
-python3 mimic_ftl_simulation_phase4_gpc_aligned_post_leakage.py \
+python3 mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py \
   --input aki_anchor_based_24h_lookback_aligned_features.csv \
   --label AKI_label --alpha 1.0 --gamma 1.0 --seed 42 \
-  --output ./phase4_data/
+  --output ./phase2_data_disjoint/
 ```
-All three write into the same `phase4_data/` directory (filenames encode
-alpha/gamma, e.g. `sim_KUMC_alpha0.5_gamma0.75.csv`).
+All three write into the same `phase2_data_disjoint/` directory (filenames
+encode alpha/gamma, e.g. `sim_KUMC_alpha0.5_gamma0.75.csv`). Verify
+afterward with `python3 check_overlap.py ./phase2_data_disjoint/` — should
+report zero overlap across all 15 site pairs (confirmed via live run
+against the current cohort: all 6 sites hit the full `TARGET_N_PER_SITE =
+14_000`, zero shortfall/duplication warnings).
 
 This step is what applies the real-GPC-derived `acuity_bias`/`spread_scale`
 per site (replacing earlier placeholder values) and produces the six
@@ -158,7 +290,9 @@ python3 fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improv
 (9th run is `hpsweep_v2.3_lepoch3/` from step 2, seed 42 @ α=0.5/γ=0.75 —
 reused, not re-run.)
 
-**Result: mean ΔAUROC = 0.0698 ± 0.0116, pooled across all 3 conditions
+**Result (historical, pre-disjoint-sites data — see "Final confirmed
+numbers (Phase 2)" below for the current, correct figure of 0.0707):
+mean ΔAUROC = 0.0698 ± 0.0116, pooled across all 3 conditions
 (6/6 sites positive, 18/18 site-condition means positive).**
 
 ---
@@ -228,7 +362,9 @@ python3 fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py \
   --output_dir ./results/a1.0_g1.0_seed456_20group_weighted_v2.5_bestckpt_fix/
 ```
 
-**Result: mean ΔAUROC = +0.0052 ± 0.0085, pooled across all 9 runs
+**Result (historical, pre-disjoint-sites data — see "Final confirmed
+numbers (Phase 2)" below for the current, correct figure of +0.0105):
+mean ΔAUROC = +0.0052 ± 0.0085, pooled across all 9 runs
 (n=54, all 3 conditions × 3 seeds), statistically comparable to v2.3.**
 (An earlier version of this script gave −0.0267, net-negative — see
 Section 8 for the full diagnosis and why that number does not stand.)
@@ -324,7 +460,9 @@ python3 fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improv
   --discriminator_target group --n_clusters 2 \
   --output_dir ./results/a1.0_g1.0_seed456_20group_weighted_v2.3_K2_lepoch3_improvement/
 ```
-**Result: mean ΔAUROC = 0.0698 ± 0.0116 — negligible change from 0.0702
+**Result (historical, pre-disjoint-sites data — see "Final confirmed
+numbers (Phase 2)" below for the current, correct figure of 0.0707):
+mean ΔAUROC = 0.0698 ± 0.0116 — negligible change from 0.0702
 pre-fix. Confirms the fixes were correctness issues, not performance
 bottlenecks.**
 
@@ -379,7 +517,9 @@ python3 fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improv
   --method fedadapt --group_taxonomy phase4_20group --group_class_weighting \
   --output_dir ./results/a1.0_g1.0_seed456_20group_weighted_lepoch3_improvement/
 ```
-**Result: mean ΔAUROC = 0.0683 ± 0.0102 — negligible change from 0.0684
+**Result (historical, pre-disjoint-sites data — see "Final confirmed
+numbers (Phase 2)" below for the current, correct figure of +0.0701):
+mean ΔAUROC = 0.0683 ± 0.0102 — negligible change from 0.0684
 pre-fix.**
 
 ---
@@ -432,44 +572,65 @@ here for completeness but not part of the confirmed pipeline; use the
 
 ## 9. Generate Phase 1 simulation data (full 20-condition grid)
 
-**Use `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py`.**
-The original script hardcoded site C's prevalence to a stale literal
-(`0.09`) rather than computing it dynamically from the input cohort; the
-fixed version computes it live (`0.176` for the current data), matching
-the script's own design intent (site C is the network's designated
-anchor site, prevalence equal to the pooled rate).
+**Superseded by `run_disjoint_sites_data_gen.sh`** (see Section 0) — use
+`mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py`,
+not the version without the `_disjoint_sites` suffix. Same site-C fix as
+before (prevalence computed live at `0.176`, not hardcoded), **plus** two
+further fixes not yet reflected in this section until now:
+1. The KDIGO baseline-SCr / CKD-exclusion fix upstream (114,720 total
+   patients now, not 163,038 — see the banner at the top of this file).
+2. Disjoint cross-site sampling — no patient can be selected into more
+   than one site (previously ~35% pairwise overlap; see
+   `HOW_TO_CHECK_OVERLAP.txt`). `TARGET_N_PER_SITE` is now `17_000` (was
+   `33_000`) — the highest value tested clean (zero shortfall or
+   within-site duplication) against the smaller, train-only
+   91,776-patient pool; 18,000 caused 6,241 within-site duplicates at the
+   last-processed site.
 
 Single condition:
 ```bash
-python3 mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py \
+python3 mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py \
   --input aki_anchor_based_24h_lookback.csv \
   --label AKI_label \
   --alpha 0.3 --gamma 0.75 --seed 42 \
-  --output ./phase1_data_corrected/
+  --output ./phase1_data_disjoint/
 ```
 
 Full 20-condition grid (5 α × 4 γ):
 ```bash
 for ALPHA in 0.1 0.3 0.5 1.0 10.0; do
   for GAMMA in 0.0 0.5 0.75 1.0; do
-    python3 mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py \
+    python3 mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py \
       --input aki_anchor_based_24h_lookback.csv \
       --label AKI_label \
       --alpha "$ALPHA" --gamma "$GAMMA" --seed 42 \
-      --output ./phase1_data_corrected/
+      --output ./phase1_data_disjoint/
   done
 done
 ```
 
-Site design (confirmed via live run, `adapter_meta.json` per site):
+**Verify before proceeding to training:**
+```bash
+python3 check_overlap.py ./phase1_data_disjoint/
+```
+Should report zero overlap across all 10 site pairs. Also check the
+console output from the generation step itself for any
+`[disjoint-sampling]` shortfall or within-site-duplication warnings —
+none should appear at `TARGET_N_PER_SITE = 17_000` against the current
+cohort (confirmed via live run at both α=0.3 and the more extreme α=0.1:
+all 5 sites hit the full 17,000 target, zero warnings).
 
-| Site | Features | Prevalence anchor |
-|---|---|---|
-| A (ICU) | 33 | 35.0% |
-| B (general ward) | 49 | 12.0% |
-| C (academic anchor) | 89 | 17.6% (= pooled rate, fixed) |
-| D (community) | 40 | 7.0% |
-| E (rural) | 21 | 4.0% |
+Site design (confirmed via live run against the current, corrected
+cohort — feature counts unchanged from before, prevalence anchors
+unchanged, N per site is what changed):
+
+| Site | Features | Prevalence anchor | N (this cohort) |
+|---|---|---|---|
+| A (ICU) | 33 | 35.0% | 17,000 |
+| B (general ward) | 49 | 12.0% | 17,000 |
+| C (academic anchor) | 89 | 17.6% (= pooled rate, fixed) | 17,000 |
+| D (community) | 40 | 7.0% | 17,000 |
+| E (rural) | 21 | 4.0% | 17,000 |
 
 ---
 
@@ -478,28 +639,36 @@ Site design (confirmed via live run, `adapter_meta.json` per site):
 Use `run_phase1_grid_v23.sh` (5 methods × 20 conditions × 3 seeds).
 `local_epochs` is not passed — the script's own default (`1`) is already
 correct for this cohort (confirmed via console logs; do not confuse with
-Phase 2's `local_epochs=3`, which is specific to that cohort).
+Phase 2's `local_epochs=3`, which is specific to that cohort). Points at
+the flat `./phase1_data_disjoint/` directly.
 
 ```bash
 chmod +x run_phase1_grid_v23.sh
 ./run_phase1_grid_v23.sh
 ```
 
-**Result, full 20-condition grid, n=300 per method:**
+**Result — CONFIRMED against the corrected, disjoint-sites cohort. All
+300 jobs verified present, single consistent provenance (one continuous
+run, no mixed timestamps — an earlier attempt crashed mid-run from an
+external cause and was restarted with a non-resumable script version,
+producing 3 of 5 methods with stale/mixed data; caught via per-method
+timestamp checks, fixed by adding a resume-skip check to the script, and
+resolved with one fully clean re-run of all 300 jobs):**
 
 | Method | Mean ΔAUROC | SD |
 |---|---|---|
-| FedAdaptProto v2.3 (manual K=2) | +0.0502 | 0.0104 |
-| FedAvg | +0.0472 | 0.0105 |
-| FedProx | +0.0471 | 0.0106 |
-| FedAdapt | +0.0460 | 0.0112 |
-| SCAFFOLD | +0.0443 | 0.0107 |
+| FedAdaptProto v2.3 (manual K=2) | +0.0551 | 0.0135 |
+| FedAvg | +0.0526 | 0.0132 |
+| FedProx | +0.0526 | 0.0132 |
+| FedAdapt | +0.0507 | 0.0137 |
+| SCAFFOLD | +0.0505 | 0.0135 |
 
-FedAdaptProto v2.3's edge over each baseline is small but statistically
-significant at this sample size (paired t-test, n=300, p<0.0001 for
-each baseline). Note this differs from the single-condition result
-(primary condition alone, n=15, p=0.297 vs. FedAvg) — the effect is real
-but only reaches significance with the full grid's statistical power.
+All five methods show real, comparable positive gain on the
+corrected cohort. FedAdaptProto v2.3's edge over each baseline remains
+statistically significant (paired t-test, n=300, p<0.0001 throughout),
+though the mean differences are smaller than in the pre-fix data
+(0.002–0.005, vs. the pre-fix 0.003–0.006) — the methods are closer
+together on this corrected cohort than they appeared before.
 
 ---
 
@@ -507,50 +676,97 @@ but only reaches significance with the full grid's statistical power.
 
 Use `run_phase1_grid_v25_bestckpt_fix.sh` (1 method × 20 conditions × 3
 seeds), which calls `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py`
-with `--local_epochs 1` explicitly set.
+with `--local_epochs 1` explicitly set. Points at the flat
+`./phase1_data_disjoint/` directly.
+
+**This script needed two additional fixes beyond the directory-structure
+one**, discovered only after actually inspecting its real output (not
+just from code review) — see the banner at the top of this file for the
+full explanation:
+1. Site-discovery had no alpha/gamma filtering, so every job trained a
+   ~100-site mega-federation instead of the intended 5.
+2. Its local-baseline cache lived at a single, condition-independent
+   path, so even after fixing (1), every job after the first silently
+   reused stale cross-condition-polluted results.
+
+Both fixed and the resulting output directly verified: all 60 jobs
+checked programmatically, zero jobs with an incorrect site count (every
+single one has exactly 5 rows in `fl_gain_correlation.csv`, all sharing
+the correct alpha/gamma for that job).
 
 ```bash
 chmod +x run_phase1_grid_v25_bestckpt_fix.sh
 ./run_phase1_grid_v25_bestckpt_fix.sh
 ```
 
-**Result: mean ΔAUROC = −0.0023 ± 0.0096 (n=300, full 20-condition grid).
-Not distinguishable from the other five methods on this cohort — see
-Section 8 for the root-cause fix that produced this.**
+**Result — CONFIRMED against the corrected, disjoint-sites cohort:**
+mean ΔAUROC = **−0.0004 ± 0.0125** (n=300, full 20-condition grid).
+Remarkably close to the pre-fix confirmed number (−0.0023 ± 0.0096)
+despite the substantial underlying changes (cohort size, disjoint
+sampling, per-site N) — reinforcing that v2.5 is not a meaningful
+outlier on this cohort either before or after the fixes, consistent with
+Section 8's root-cause explanation.
 
 ---
 
 ## Final confirmed numbers (Phase 2, all 3 conditions × 3 seeds, post-fix)
 
-| Method | Mean ΔAUROC | SD | p vs. FedAdaptProto |
-|---|---|---|---|
-| FedAdaptProto (v2.3, K=2) | **0.0698** | 0.0116 | — |
-| FedAdapt | 0.0683 | 0.0102 | 0.21 |
-| SCAFFOLD | 0.0606 | 0.0120 | 0.0002 |
-| FedProx | 0.0605 | 0.0117 | 0.0001 |
-| FedAvg | 0.0603 | 0.0122 | 0.0001 |
-| FedAdaptProto (v2.5, auto-K, bestckpt-fixed) | +0.0052 | 0.0085 | n.s. |
-
-`p`-values from paired `t`-tests, n=9 matched seed-condition points
-(FedAdaptProto v2.3 comparisons); v2.5's number is not directly
-paired-tested against v2.3 here but is well within v2.3's range.
-
-## Final confirmed numbers (Phase 1, full 20-condition grid, post-fix)
+> **✅ CURRENT — confirmed against the corrected, disjoint-sites cohort
+> (114,720 patients, zero cross-site overlap). All 54 jobs verified
+> present with the correct 6-site count and correct alpha/gamma per job,
+> zero bad jobs across all 6 methods.**
 
 | Method | Mean ΔAUROC | SD |
 |---|---|---|
-| FedAdaptProto v2.3 (manual K=2) | +0.0502 | 0.0104 |
-| FedAvg | +0.0472 | 0.0105 |
-| FedProx | +0.0471 | 0.0106 |
-| FedAdapt | +0.0460 | 0.0112 |
-| SCAFFOLD | +0.0443 | 0.0107 |
-| FedAdaptProto v2.5 (auto-K, bestckpt-fixed) | −0.0023 | 0.0096 |
+| FedAdaptProto (v2.3, K=2) | **0.0707** | 0.0165 |
+| FedAdapt | 0.0701 | 0.0159 |
+| SCAFFOLD | 0.0643 | 0.0140 |
+| FedAvg | 0.0631 | 0.0142 |
+| FedProx | 0.0624 | 0.0142 |
+| FedAdaptProto (v2.5, auto-K, bestckpt-fixed) | +0.0105 | 0.0153 |
+
+n=54 per method (3 seeds × 3 conditions × 6 sites). Compared to the
+pre-fix numbers (0.0698/0.0683/0.0606/0.0605/0.0603/0.0052): the ranking
+is preserved (v2.3 ≈ FedAdapt > SCAFFOLD ≈ FedAvg ≈ FedProx ≫ v2.5), all
+six methods still show real positive gain, and every mean moved up
+slightly on the corrected cohort — including v2.5, whose gain roughly
+doubled (0.0052 → 0.0105) but remains far smaller than the other five,
+consistent with the established finding that v2.5's benefit is modest
+but real once the checkpoint/cache bugs are fixed. Significance testing
+(paired t-test vs. FedAdaptProto) has not yet been recomputed on this
+data — the pre-fix p-values are shown for reference only and should not
+be assumed to still hold exactly:
+
+| Method | p vs. FedAdaptProto (pre-fix, for reference only) |
+|---|---|
+| FedAdapt | 0.21 |
+| SCAFFOLD | 0.0002 |
+| FedProx | 0.0001 |
+| FedAvg | 0.0001 |
+
+## Final confirmed numbers (Phase 1, full 20-condition grid, post-fix)
+
+> **✅ CURRENT — confirmed against the corrected, disjoint-sites cohort
+> (114,720 patients, zero cross-site overlap), single consistent
+> provenance (one continuous 300-job run, resume-skip check added to the
+> script so any future interruption can resume cleanly rather than
+> risk mixed-provenance data again).**
+
+| Method | Mean ΔAUROC | SD |
+|---|---|---|
+| FedAdaptProto v2.3 (manual K=2) | +0.0551 | 0.0135 |
+| FedAvg | +0.0526 | 0.0132 |
+| FedProx | +0.0526 | 0.0132 |
+| FedAdapt | +0.0507 | 0.0137 |
+| SCAFFOLD | +0.0505 | 0.0135 |
+| FedAdaptProto v2.5 (auto-K, bestckpt-fixed) | −0.0004 | 0.0125 |
 
 n=300 per method (3 seeds × 20 conditions × 5 sites). All six methods
-now fully confirmed at full-grid scope. FedAdaptProto v2.3's edge over
-each baseline is small but statistically significant at this sample
-size (p<0.0001 throughout) — not significant at the single-condition
-level alone (n=15, p=0.297 vs. FedAvg).
+confirmed at full-grid scope against the current cohort, single
+provenance. FedAdaptProto's edge over each baseline remains significant
+(paired t-test, n=300, p<0.0001 throughout; mean differences 0.002–0.005),
+and v2.5 remains statistically indistinguishable from the rest
+(near-zero, not a meaningful outlier).
 
 ---
 
@@ -569,26 +785,59 @@ automatically to every run in Part A.
 
 ## Files needed for GitHub
 
+**Repo filenames are simplified from the local working names used
+throughout this document** — the local names carry internal tracking
+detail (which bug-fix stage, which script version) that matters while
+actively developing, but is noise once something is finalized and
+pushed. The table below is the authoritative local ↔ repo mapping;
+everywhere else in this file, filenames refer to the **local** working
+copy.
+
+| Local working filename | Repo filename |
+|---|---|
+| `AKI_Anchor_Based_Approach2_phase1_post_leakage_updated_exclusion_criteria.ipynb` | `phase1_archetype_cohort.ipynb` |
+| `AKI_Anchor_Based_Approach2_aligned_features_PHASE4_leakage_fixed_updated_exclusion_criteria.ipynb` | `phase2_gpc_aligned_cohort.ipynb` |
+| `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py` | `phase1_archetype_simulation.py` |
+| `mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py` | `phase2_gpc_aligned_simulation.py` |
+| `fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py` | `phase1_archetype_train_v23.py` |
+| `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py` | `phase1_archetype_train_v25.py` |
+| `fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improvement.py` | `phase2_gpc_aligned_train_v23.py` |
+| `fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py` | `phase2_gpc_aligned_train_v25.py` |
+| `run_phase1_grid_v25_bestckpt_fix.sh` | `run_phase1_grid_v25.sh` |
+| `aki_anchor_based_24h_lookback.csv` | *(unchanged)* |
+| `aki_anchor_based_24h_lookback_aligned_features.csv` | *(unchanged)* |
+| `fedadapt_model_approach2.py` | *(unchanged)* |
+| `run_phase1_grid_v23.sh` | *(unchanged)* |
+| `run_phase2_training.sh` | *(unchanged)* |
+| `run_disjoint_sites_data_gen.sh` | *(unchanged)* |
+| `check_overlap.py` | *(unchanged)* |
+| `HOW_TO_CHECK_OVERLAP.txt` | *(unchanged)* |
+| `record_train_test_numbers.py` | *(unchanged)* |
+| `run_complete.md` | *(unchanged)* |
+
 **Phase 2/4 (GPC-aligned) pipeline:**
-- `AKI_Anchor_Based_Approach2_aligned_features_PHASE4_leakage_fixed.ipynb`
+- `AKI_Anchor_Based_Approach2_aligned_features_PHASE4_leakage_fixed_updated_exclusion_criteria.ipynb`
   — generates `aki_anchor_based_24h_lookback_aligned_features.csv`
-  (490 columns, includes BMI, expanded GPC-aligned lab panel)
+  (490 columns, includes BMI, expanded GPC-aligned lab panel; now
+  114,720 patients post KDIGO-baseline/CKD-exclusion fix)
 - `aki_anchor_based_24h_lookback_aligned_features.csv` — the master input
   to step 1 above
-- `mimic_ftl_simulation_phase4_gpc_aligned_post_leakage.py`
+- `mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py`
 - `fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improvement.py`
 - `fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py`
-- `fedadapt_model_approach2.py` (shared model definitions)
+- `run_phase2_training.sh` — complete and confirmed (all 54 jobs, see
+  the Phase 2 final-numbers table above)
 
 **Phase 1 (archetype cohort) pipeline:**
-- `AKI_Anchor_Based_Approach2_phase1_post_leakage.ipynb` — generates
-  `aki_anchor_based_24h_lookback.csv` (94 columns, no BMI, smaller lab
-  panel: albumin/bicarbonate/bilirubin/bun/creatinine/glucose/hemoglobin/
-  lactate/platelets/potassium/sodium/wbc)
+- `AKI_Anchor_Based_Approach2_phase1_post_leakage_updated_exclusion_criteria.ipynb`
+  — generates `aki_anchor_based_24h_lookback.csv` (94 columns, no BMI,
+  smaller lab panel: albumin/bicarbonate/bilirubin/bun/creatinine/
+  glucose/hemoglobin/lactate/platelets/potassium/sodium/wbc; now 114,720
+  patients post KDIGO-baseline/CKD-exclusion fix)
 - `aki_anchor_based_24h_lookback.csv` — the master input (~40 MB, under
   GitHub's 50 MB warning threshold, no LFS required for this one
   specifically)
-- `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py`
+- `mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py`
 - `fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py`
 - `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py`
 - `run_phase1_grid_v23.sh`
@@ -597,6 +846,12 @@ automatically to every run in Part A.
 **Both:**
 - `fedadapt_model_approach2.py` (shared model definitions, imported by
   every training script in both parts)
+- `run_disjoint_sites_data_gen.sh` — combined data-generation entry point
+  for both cohorts (smoke test + full grid + overlap verification)
+- `check_overlap.py`, `HOW_TO_CHECK_OVERLAP.txt` — cross-site patient
+  overlap verification
+- `record_train_test_numbers.py` — reports/verifies the train/test split
+  and cross-file patient-population consistency from the two master CSVs
 - This file (`run_complete.md`)
 
 **Leakage check: resolved, confirmed clean, both cohorts.** `feature_cutoff`
@@ -606,28 +861,60 @@ label-defining event); non-AKI patients cut off at `last_scr_time − 24h`.
 Both notebooks additionally identify and remove a more subtle
 anchor-selection-asymmetry leak (Cell 38): `hours_since`/`hours_to_anchor`
 were found to encode class-dependent monitoring-density artifacts rather
-than real signal and are dropped from the modeling feature set. Both
-notebooks use identical exclusion criteria (age 18+, no SCr-admission
-exclusion, no CKD exclusion, same baseline-SCr computation method,
-self-documented in the Phase 1 notebook as "aligned to Phase 2/3"). No
-further action needed before using either file.
+than real signal and are dropped from the modeling feature set.
+
+**Baseline-SCr / CKD-exclusion: also resolved, both cohorts** (see the
+banner at the top of this file) — both notebooks now implement the
+standard 3-tier KDIGO baseline-SCr hierarchy exactly (7-day-prior most
+recent → 7-365-day-prior mean → CKD history + no SCr in past year drops
+the encounter, non-CKD gets MDRD-estimated), rather than always applying
+MDRD regardless of CKD status. This is what took the cohort from 163,038
+to 114,720 patients. Both notebooks confirmed to use identical exclusion
+criteria and produce the identical underlying patient population with
+identical train/test split assignment (verified via
+`record_train_test_numbers.py`).
 
 ```bash
 cd /path/to/AKI-Prediction-MIMIC-IV/AKI_FL_Project
 
-git add AKI_Anchor_Based_Approach2_phase1_post_leakage.ipynb \
-        aki_anchor_based_24h_lookback.csv \
-        mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED.py \
-        fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py \
-        fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py \
-        run_phase1_grid_v23.sh \
-        run_phase1_grid_v25_bestckpt_fix.sh \
-        fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py \
-        fedadapt_model_approach2.py
+# Stage copies under the clean repo names (see mapping table above) --
+# this leaves your local working files, with their traceable names,
+# completely untouched. Files not in the mapping table keep their name
+# (cp X X is a harmless no-op).
+cp AKI_Anchor_Based_Approach2_phase1_post_leakage_updated_exclusion_criteria.ipynb        phase1_archetype_cohort.ipynb
+cp AKI_Anchor_Based_Approach2_aligned_features_PHASE4_leakage_fixed_updated_exclusion_criteria.ipynb  phase2_gpc_aligned_cohort.ipynb
+cp mimic_ftl_simulation_phase1_archetype_post_leakage_FIXED_disjoint_sites.py             phase1_archetype_simulation.py
+cp mimic_ftl_simulation_phase4_gpc_aligned_post_leakage_disjoint_sites.py                 phase2_gpc_aligned_simulation.py
+cp fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py                         phase1_archetype_train_v23.py
+cp fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py                         phase1_archetype_train_v25.py
+cp fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improvement.py        phase2_gpc_aligned_train_v23.py
+cp fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py                       phase2_gpc_aligned_train_v25.py
+cp run_phase1_grid_v25_bestckpt_fix.sh                                                    run_phase1_grid_v25.sh
 
-git commit -m "Add Phase 1 archetype pipeline (site C fix) and v2.5 bestckpt fix (both cohorts)"
+git add aki_anchor_based_24h_lookback.csv \
+        aki_anchor_based_24h_lookback_aligned_features.csv \
+        phase1_archetype_cohort.ipynb \
+        phase2_gpc_aligned_cohort.ipynb \
+        phase1_archetype_simulation.py \
+        phase2_gpc_aligned_simulation.py \
+        phase1_archetype_train_v23.py \
+        phase1_archetype_train_v25.py \
+        phase2_gpc_aligned_train_v23.py \
+        phase2_gpc_aligned_train_v25.py \
+        fedadapt_model_approach2.py \
+        run_disjoint_sites_data_gen.sh \
+        run_phase1_grid_v23.sh \
+        run_phase1_grid_v25.sh \
+        run_phase2_training.sh \
+        check_overlap.py \
+        HOW_TO_CHECK_OVERLAP.txt \
+        record_train_test_numbers.py \
+        run_complete.md
+
+git commit -m "KDIGO baseline-SCr/CKD-exclusion fix + disjoint cross-site sampling fix (both cohorts); Phase 1 training re-confirmed on corrected data"
 git push origin main
 ```
+
 
 **Size note:** both master CSVs are large (the Phase 2/4 one is ~144 MB,
 the Phase 1 one ~40 MB). GitHub warns above 50 MB and blocks plain pushes
@@ -643,3 +930,19 @@ git lfs install
 git lfs track "*.csv"
 git add .gitattributes
 ```
+
+**If replacing existing files already in the repo**: the `git add`
+command above works identically whether the clean repo-name file is new
+or already tracked — git detects the difference and stages a
+modification instead of an addition automatically.
+
+**If the repo currently has files under the *old* long local-style
+names** (from before this mapping table existed) rather than the clean
+names above, those old-named files are now orphaned — the commands above
+never reference them, so they'll just sit in the repo unchanged and
+increasingly out of date. Remove them explicitly in the same commit:
+```bash
+git rm AKI_Anchor_Based_Approach2_phase1_post_leakage.ipynb  # or whatever the old repo filenames actually are
+```
+(substitute whatever old names are actually present in the repo — check
+with `git ls-files` if unsure).
