@@ -1,21 +1,4 @@
 #!/bin/bash
-# Full 20-condition x 3-seed grid, v2.5 (auto-K) FedAdaptProto only,
-# on the disjoint-sites-corrected phase1_data_disjoint/ (patients disjoint
-# across sites; cohort updated after the KDIGO baseline-SCr/CKD-exclusion
-# fix -- see run_complete.md), using the bestckpt_fix script (Phase 1
-# best-checkpoint restoration) and local_epochs=1 (matching v2.3's actual
-# archetype-cohort value, confirmed via console logs and Table 3 in the
-# manuscript -- NOT local_epochs=3, which is specific to the
-# GPC-aligned/Phase 2 cohort only).
-# 1 method x 20 conditions x 3 seeds = 60 jobs.
-#
-# IMPORTANT: mimic_ftl_simulation_*.py writes ALL conditions into the SAME
-# flat directory (one CSV per site per condition, e.g.
-# site_A_alpha0.3_gamma0.75.csv) -- there are no per-condition subfolders.
-# The training script's load_site() already handles condition selection by
-# matching the alpha/gamma-suffixed filename within that flat directory, so
-# DATA_DIR below is the same flat root for every iteration, not a
-# per-condition path.
 
 set -e
 
@@ -24,30 +7,52 @@ GAMMAS=(0.0 0.5 0.75 1.0)
 SEEDS=(42 123 456)
 
 DATA_DIR="./phase1_data_disjoint"
-OUT_ROOT="./results_phase1_grid_v25_bestckpt_fix"
+TRAIN_SCRIPT="phase1_archetype_train_v25.py"
+
+# Optional tag: ./run_phase1_grid_v25.sh postfix  ->  output goes to
+# ./results_phase1_grid_v25_postfix/ instead of ./results_phase1_grid_v25/.
+# Use this to keep runs from different pipeline states clearly separated
+# on disk (e.g. "postfix" for a run against the corrected training script),
+# rather than risking the mixed-provenance situation from before.
+TAG="${1:-}"
+if [ -n "$TAG" ]; then
+  OUT_ROOT="./results_phase1_grid_v25_${TAG}"
+else
+  OUT_ROOT="./results_phase1_grid_v25"
+fi
+
+# Version safeguard: refuse to run unless the training script on disk is
+# confirmed to be the fixed version (both the site-discovery filtering fix
+# and the condition-specific cache-path fix). Prevents silently re-running
+# against a stale/reverted copy of the script.
+if ! grep -q "FIX.*original filter" "$TRAIN_SCRIPT" 2>/dev/null; then
+  echo "ERROR: $TRAIN_SCRIPT does not contain the expected fix signature."
+  echo "This script requires the fixed version (site-discovery filtering +"
+  echo "condition-specific cache path). Refusing to run against what may be"
+  echo "a stale or reverted copy -- verify the file before re-running."
+  exit 1
+fi
+
+echo "Confirmed: $TRAIN_SCRIPT has the expected fix signature. Proceeding."
+echo "Output directory: $OUT_ROOT"
 
 for ALPHA in "${ALPHAS[@]}"; do
   for GAMMA in "${GAMMAS[@]}"; do
     for SEED in "${SEEDS[@]}"; do
       OUT_DIR="${OUT_ROOT}/alpha${ALPHA}_gamma${GAMMA}_seed${SEED}/"
 
-      # [RESUME] Skip any job whose output already exists from an
-      # earlier, interrupted run of this same script.
       if [ -f "${OUT_DIR}fedadaptproto/fl_gain_correlation.csv" ]; then
         echo "[resume-skip] already completed: alpha=$ALPHA gamma=$GAMMA seed=$SEED"
         continue
       fi
 
-      # Check the specific condition's site files exist in the flat
-      # data directory (rather than checking for a subfolder, which
-      # doesn't exist -- see note above).
       if ! ls "${DATA_DIR}"/site_A_alpha${ALPHA}_gamma${GAMMA}.csv >/dev/null 2>&1; then
         echo "[skip] missing site files for alpha=$ALPHA gamma=$GAMMA in $DATA_DIR"
         continue
       fi
 
-      echo "=== v2.5 [bestckpt_fix] alpha=$ALPHA gamma=$GAMMA seed=$SEED ==="
-      python3 phase1_archetype_train_v25.py \
+      echo "=== v2.5 alpha=$ALPHA gamma=$GAMMA seed=$SEED ==="
+      python3 "$TRAIN_SCRIPT" \
         --data_dir "$DATA_DIR" \
         --method fedadaptproto --alpha "$ALPHA" --gamma "$GAMMA" --seed "$SEED" \
         --local_epochs 1 \
@@ -58,4 +63,4 @@ for ALPHA in "${ALPHAS[@]}"; do
   done
 done
 
-echo "Done: v2.5 auto-K grid, bestckpt_fix + local_epochs=1 (20 conditions x 3 seeds = 60 jobs)."
+echo "Done: v2.5 auto-K grid, $OUT_ROOT (20 conditions x 3 seeds = 60 jobs)."
