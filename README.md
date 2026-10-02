@@ -202,6 +202,12 @@ MIMIC-IV access):
   observations; refuses to blend methods silently
 - `flgain_sign_rank.py` — sign + ranking with leave-one-SITE-out and
   permutation nulls. `--predictors prevalence` runs the published model.
+- `score_fixed_coefficients.py` — score the already-published coefficients
+  against NEW data WITHOUT refitting (e.g. Phase 3 real-site data).
+  Companion to `flgain_sign_rank.py`, which always refits leave-one-site-out;
+  this one doesn't, so it isn't underpowered at small n the way a refit on a
+  handful of real sites would be. Reports balanced accuracy, Kendall's tau,
+  and a per-site predicted-vs-observed table for the fixed line.
 - `joining_site_report.py` — the deliverable for a prospective member:
   expected gain with a 90% LOO-residual interval and achieved coverage
 - `site_predictors.py` — builds the pre-join predictors (positive count,
@@ -258,6 +264,12 @@ MIMIC-IV access):
   (KDIGO/CKD-exclusion, disjoint sampling, v2.5 checkpoint/cache bugs, the
   interrupted-grid incident); kept separate from the run log and from the
   matched-baseline protocol, which is a methodology choice, not a bug
+- `phase3_joining_site_verification.md` — step-by-step instructions for
+  verifying the joining-site prevalence predictor against real Phase 3
+  data from the six GPC sites, both by refitting on Phase 3 alone
+  (underpowered at n=6) and by scoring the already-published coefficients
+  without refitting (`score_fixed_coefficients.py`); see `run_complete.md`
+  §14.9 for the condensed command sequence
 
 ---
 
@@ -287,6 +299,15 @@ chmod +x run_phase2_training.sh
 # 5. FL Gain Index correlation (no training)
 python3 compute_flgi_correlation.py example_gpc_aligned_sites.csv
 python3 compute_flgi_correlation.py example_archetype_sites.csv
+
+# 6. Phase 3 verification -- score the published joining-site coefficients
+# against real data from the six GPC sites, no refitting (primary check);
+# flgain_sign_rank.py refits on Phase 3 alone as a secondary, underpowered
+# (n=6) check. See phase3_joining_site_verification.md and
+# run_complete.md §14.9 for the full step-by-step.
+python3 score_fixed_coefficients.py --data gains_phase3_pooled.csv \
+    --target delta_auroc --a -0.0154 --b 0.0460
+python3 flgain_sign_rank.py --data gains_phase3_pooled.csv --predictors prevalence
 ```
 
 All three grid scripts have a **resume-skip check** — a job whose output
