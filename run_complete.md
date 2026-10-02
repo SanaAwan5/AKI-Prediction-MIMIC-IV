@@ -1,6 +1,6 @@
 # Complete Run Instructions — Phase 2 (GPC-Aligned) and Phase 1 (Clinical-Archetype)
 
-> **✅ ALL TRAINING COMPLETE ON BOTH COHORTS.**
+> **ALL TRAINING COMPLETE ON BOTH COHORTS.**
 > Both master CSVs reflect the corrected baseline-SCr computation (KDIGO
 > 3-tier hierarchy) and disjoint cross-site sampling (zero overlap,
 > verified via `check_overlap.py`). **Phase 1 v2.5 (60 jobs), Phase 1
@@ -10,15 +10,9 @@
 > anywhere. The manuscript (`main.tex`) reflects all of this and is
 > current as of this version.
 >
-> **Six real code defects were found and fixed along the way — see
-> `BUGFIX_LOG.md`** for the full history (KDIGO/CKD-exclusion fix,
-> disjoint-sampling fix, the v2.5 checkpoint/local_epochs bug, the v2.5
-> site-discovery/baseline-cache bug, an interrupted-grid stale-data
-> incident, and a pending AUPRC/local-ceiling architecture confound tied
-> to the withdrawn FL Gain Index). Section 8 below keeps a short summary
-> of the one that affects reading the v2.5 numbers in this file; the rest
-> live only in the log, since none of them bear on how to run or
-> reproduce the current pipeline.
+> See `BUGFIX_LOG.md` for the history of code defects found and fixed
+> along the way — this file covers only how to run and reproduce the
+> current pipeline.
 
 ## Cohort summary (confirmed, current)
 
@@ -111,13 +105,11 @@ block) — this project has repeatedly found silent `--data_dir`/`--alpha`/
   new — every condition would have silently hit `[skip] missing data dir`
   and produced zero training output.) **v2.5 additionally needed two more
   fixes** inside `phase1_archetype_train_v25.py`
-  itself before its grid's output could be trusted — see the banner at
-  the top of this file. **All three grid scripts also gained a
-  resume-skip check** (skips a job if its output file already exists) after
-  the v2.3 grid's first attempt was interrupted mid-run and a restart
-  without this check produced mixed-provenance data for 3 of 5 methods
-  (see the banner). All 60 v2.5 jobs and all 300 v2.3+baselines jobs are
-  now complete and confirmed, single provenance (Section 10/11 below).
+  itself before its grid's output could be trusted.
+  **All three grid scripts also gained a resume-skip check** (skips a job
+  if its output file already exists). All 60 v2.5 jobs and all 300
+  v2.3+baselines jobs are now complete and confirmed, single provenance
+  (Section 10/11 below).
 - `run_phase2_training.sh` — the Phase 2 equivalent (54 runs: v2.3 9 +
   v2.5 9 + 4 baselines × 36), covering Sections 3/4/5 below. **Complete
   and confirmed** — all 54 jobs verified present with the correct 6-site
@@ -500,27 +492,19 @@ pre-fix.**
 
 ---
 
-## 8. v2.5 fix — what changed and the confirmed result (full diagnosis: `BUGFIX_LOG.md` §3)
+## 8. v2.5 confirmed result
 
-v2.5's original scripts reported strongly negative results on both
-cohorts (GPC-aligned: −0.0267; archetype: −0.0945) from two causes: a
-missing best-checkpoint restoration after v2.5's Phase-1 warmup stage,
-and an uncontrolled `local_epochs` mismatch (v2.5 defaults to `5`, v2.3
-to `1`). Fixed in `phase2_gpc_aligned_train_v25.py` and
-`phase1_archetype_train_v25.py` — pass `--local_epochs 1` explicitly for
-a fair v2.3 comparison; behavior is unchanged from the original script
-when it's left unset.
+Pass `--local_epochs 1` explicitly to `phase2_gpc_aligned_train_v25.py`
+and `phase1_archetype_train_v25.py` for a fair v2.3 comparison; behavior
+is unchanged from the original script when it's left unset.
 
-**Confirmed result after the fix, both cohorts:**
-- GPC-aligned: −0.0267 → **+0.0052 ± 0.0085** (n=54, full 9-run grid)
-- Archetype, primary condition: −0.0945 → **−0.0044 ± 0.0104** (n=15)
+**Confirmed result, both cohorts:**
+- GPC-aligned: **+0.0052 ± 0.0085** (n=54, full 9-run grid)
+- Archetype, primary condition: **−0.0044 ± 0.0104** (n=15)
 - Archetype, full 20-condition grid: **−0.0023 ± 0.0096** (n=300)
 
-All three are now statistically comparable to v2.3 and the simple
-baselines on their respective cohorts — v2.5 is no longer an outlier on
-either cohort under this fix. (A separate, later-discovered pair of bugs
-in the same script family — site-discovery filtering and the
-baseline-cache path — is documented in `BUGFIX_LOG.md` §4, not here.)
+All three are statistically comparable to v2.3 and the simple baselines
+on their respective cohorts — v2.5 is not an outlier on either cohort.
 
 ---
 
@@ -534,7 +518,7 @@ not the version without the `_disjoint_sites` suffix. Same site-C fix as
 before (prevalence computed live at `0.176`, not hardcoded), **plus** two
 further fixes not yet reflected in this section until now:
 1. The KDIGO baseline-SCr / CKD-exclusion fix upstream (114,720 total
-   patients now, not 163,038 — see the banner at the top of this file).
+   patients now, not 163,038).
 2. Disjoint cross-site sampling — no patient can be selected into more
    than one site (previously ~35% pairwise overlap; see
    `HOW_TO_CHECK_OVERLAP.txt`). `TARGET_N_PER_SITE` is now `17_000` (was
@@ -635,20 +619,11 @@ seeds), which calls `phase1_archetype_train_v25.py`
 with `--local_epochs 1` explicitly set. Points at the flat
 `./phase1_data_disjoint/` directly.
 
-**This script needed two additional fixes beyond the directory-structure
-one**, discovered only after actually inspecting its real output (not
-just from code review) — see the banner at the top of this file for the
-full explanation:
-1. Site-discovery had no alpha/gamma filtering, so every job trained a
-   ~100-site mega-federation instead of the intended 5.
-2. Its local-baseline cache lived at a single, condition-independent
-   path, so even after fixing (1), every job after the first silently
-   reused stale cross-condition-polluted results.
-
-Both fixed and the resulting output directly verified: all 60 jobs
-checked programmatically, zero jobs with an incorrect site count (every
-single one has exactly 5 rows in `fl_gain_correlation.csv`, all sharing
-the correct alpha/gamma for that job).
+This script needed two additional fixes beyond the directory-structure
+one before its output could be trusted. Both fixed and the resulting output directly verified:
+all 60 jobs checked programmatically, zero jobs with an incorrect site
+count (every single one has exactly 5 rows in `fl_gain_correlation.csv`,
+all sharing the correct alpha/gamma for that job).
 
 ```bash
 chmod +x run_phase1_grid_v25.sh
@@ -675,7 +650,7 @@ Section 8's root-cause explanation.
 > measurement, not a correction of this one. The relative ranking agrees
 > between the two; the absolute gains do not.
 
-> **✅ CURRENT — confirmed against the corrected, disjoint-sites cohort
+> **CURRENT — confirmed against the corrected, disjoint-sites cohort
 > (114,720 patients, zero cross-site overlap). All 54 jobs verified
 > present with the correct 6-site count and correct alpha/gamma per job,
 > zero bad jobs across all 6 methods.**
@@ -714,7 +689,7 @@ be assumed to still hold exactly:
 > Same as the Phase 2 table above: relative ranking agrees between the
 > conventional and matched-baseline protocols; the absolute gains do not.
 
-> **✅ CURRENT — confirmed against the corrected, disjoint-sites cohort
+> **CURRENT — confirmed against the corrected, disjoint-sites cohort
 > (114,720 patients, zero cross-site overlap), single consistent
 > provenance (one continuous 300-job run, resume-skip check added to the
 > script so any future interruption can resume cleanly rather than
@@ -740,7 +715,7 @@ and v2.5 remains statistically indistinguishable from the rest
 
 ## 12. FL Gain Index computation (post-training analysis) — **WITHDRAWN**
 
-> **⚠️ This section documents a superseded result. Do not report its
+> **This section documents a superseded result. Do not report its
 > numbers.** The three-term FL Gain Index was withdrawn on 2026-09-21.
 > Two of its three terms are outcome prevalence entered twice under
 > different names: `class_imbalance` is `1 - prevalence` by definition,
@@ -803,22 +778,18 @@ role) to a CSV file.
 
 ## 13. AUPRC experiment + v2.5 local-baseline architecture fix (addendum)
 
-> **⏳ PENDING — code fixed and compiled, not yet run.** This section
-> documents two changes bundled into one addendum, both discovered while
-> setting up an AUPRC-based FL-Gain experiment on top of the existing
+> **PENDING — code fixed and compiled, not yet run.** This section
+> documents two changes bundled into one addendum, both needed before
+> an AUPRC-based FL-Gain experiment can run on top of the existing
 > AUROC one:
 >
-> 1. **AUPRC was never carried through to `fl_gain_correlation.csv` /
->    `local_baseline_fl_gain_revised*.csv`.** v2.3's `evaluate_site()`
->    already computed it (`{"auroc", "f1", "auprc"}`) but
->    `run_local_only()` kept only `auroc`. v2.5's local-baseline loop
->    computed AUROC only and never called `average_precision_score` at
->    all.
-> 2. **v2.5's local-only baseline used the wrong architecture** (see the
->    banner at the top of this file) — a separate generic 3-layer MLP
->    instead of the real `FedAdaptClient`, unlike v2.3's matched
->    counterfactual. This directly affects `local_ceiling` / `C_i^raw`,
->    the dominant term in Eq. flgi-post, for every v2.5 row in the pooled
+> 1. AUPRC was never carried through to `fl_gain_correlation.csv` /
+>    `local_baseline_fl_gain_revised*.csv`.
+> 2. v2.5's local-only baseline used the wrong architecture — a generic
+>    3-layer MLP instead of the real `FedAdaptClient`, unlike v2.3's
+>    matched counterfactual. This directly affects `local_ceiling` /
+>    `C_i^raw`, the dominant term in Eq. flgi-post, for every v2.5 row in
+>    the pooled
 >    n=390 fit.
 
 ### Files (already using clean repo-style names — see the mapping table
@@ -1214,7 +1185,7 @@ across them is meaningless.
 
 ### 14.8 Matched-baseline protocol — final numbers (both cohorts)
 
-> **✅ CURRENT — a second, independent evaluation under a symmetric
+> **CURRENT — a second, independent evaluation under a symmetric
 > protocol, alongside the "Final confirmed numbers (Phase 1 / Phase 2)"
 > tables above.** Those tables score each federated method against
 > whatever local baseline its own job happened to produce — a different
@@ -1337,6 +1308,45 @@ printed "Pooling configurations" list names each method exactly once.
 between two methods whose means are both negative says one loses less
 than the other, not that either improves on local-only training.
 
+### 14.9 Phase 3 verification (real GPC sites)
+
+Phase 3 is external validation on real data from the same six GPC
+institutions Phase 2 simulates. Two different things "verify on Phase 3"
+can mean, and they are not interchangeable — run both, report both (see
+`phase3_joining_site_verification.md` for the full walkthrough; this is
+the condensed version):
+
+```bash
+# Get Phase 3 data into shape (same schema recompute_gains.py /
+# pool_site_conditions.py already expect), then merge in each real
+# site's own AKI prevalence to get gains_phase3_pooled.csv with columns
+# site, prevalence, delta_auroc, delta_auprc -- same schema as p01.csv.
+
+# 7a. Refit on Phase 3 alone (secondary, underpowered at n=6 -- same
+# regression-budget problem Sec. 14.1 expanded the archetype cohort to
+# fix)
+python3 flgain_sign_rank.py --data gains_phase3_pooled.csv --predictors prevalence
+python3 joining_site_report.py --data gains_phase3_pooled.csv \
+    --predictors prevalence --target delta_auroc
+
+# 7b. Score the already-published coefficients without refitting
+# (primary result -- nothing is re-estimated from the 6 real sites, so
+# it doesn't have 7a's power problem; this is the manuscript's actual
+# GPC-precondition check, same as Sec. 14.5's controlled negative, just
+# pointed at real data instead of simulated)
+python3 score_fixed_coefficients.py --data gains_phase3_pooled.csv \
+    --target delta_auroc --a -0.0154 --b 0.0460
+python3 score_fixed_coefficients.py --data gains_phase3_pooled.csv \
+    --target delta_auprc --a -0.0440 --b 0.1330
+```
+
+Report 7b as the primary result, 7a flagged as underpowered at n=6 —
+exactly how the simulated GPC-aligned cohort is reported in the
+manuscript (§5.3, "Preconditions for Deployment"). With only 6 points,
+balanced accuracy is not reliably estimable if one class has 0–1
+members; `score_fixed_coefficients.py` still prints it, but read it with
+that caveat.
+
 ---
 
 ## GPC-vitals exclusion (applies to every Phase 2 run above)
@@ -1453,6 +1463,10 @@ them.
   - `compute_matched_baseline.py` — matched-effort local baselines
   - `recompute_gains.py`, `pool_site_conditions.py` — gain assembly
   - `flgain_sign_rank.py` — sign + ranking, leave-one-site-out
+  - `score_fixed_coefficients.py` — scores the already-published
+    coefficients against new data without refitting (Section 14.9, Phase
+    3 verification); companion to `flgain_sign_rank.py` above, which
+    always refits
   - `joining_site_report.py` — prediction intervals with coverage check
     (**not** `joining_site_recommendation.py` — that's an earlier tool
     built for the withdrawn FL-Gain-Index approach; nothing in this
@@ -1489,8 +1503,7 @@ anchor-selection-asymmetry leak (Cell 38): `hours_since`/`hours_to_anchor`
 were found to encode class-dependent monitoring-density artifacts rather
 than real signal and are dropped from the modeling feature set.
 
-**Baseline-SCr / CKD-exclusion: also resolved, both cohorts** (see the
-banner at the top of this file) — both notebooks now implement the
+**Baseline-SCr / CKD-exclusion: also resolved, both cohorts** — both notebooks now implement the
 standard 3-tier KDIGO baseline-SCr hierarchy exactly (7-day-prior most
 recent → 7-365-day-prior mean → CKD history + no SCr in past year drops
 the encounter, non-CKD gets MDRD-estimated), rather than always applying
@@ -1550,34 +1563,13 @@ git commit -m "KDIGO baseline-SCr/CKD-exclusion fix + disjoint cross-site sampli
 git push origin main
 ```
 
-> **⚠️ Why four `cp` lines were removed from the staging block above.**
-> It previously also staged the training/grid scripts from their old
-> local working names:
->
-> ```
-> cp fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py   phase1_archetype_train_v25.py
-> cp fedadapt_train_approach2_v2_3_phase1_archetype_post_leakage.py   phase1_archetype_train_v23.py
-> cp fedadapt_train_approach2_v2_3_ftablation_taxtest_v2_leakage_fixed_improvement.py  phase2_gpc_aligned_train_v23.py
-> cp fedadapt_train_approach2_v2_5_phase2_gpc_aligned_bestckpt_fix.py phase2_gpc_aligned_train_v25.py
-> ```
->
-> The first of those was actively destructive and was verified as such on
-> the real working directory:
-> `fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py` is
-> **not** a copy of `phase1_archetype_train_v25.py` — it has the
-> site-discovery filter fix but is missing the condition-specific
-> baseline-cache fix (`grep -c "_cond_suffix"` returns **0** on it,
-> **3** on the clean-named file). Running that `cp` therefore silently
-> replaced the good, fully-fixed Phase 1 v2.5 script with the half-fixed
-> one, reintroducing the stale-cross-condition-cache bug described in the
-> banner at the top of this file. The other three were byte-identical
-> duplicates, harmless in themselves but pointless once the repo keeps
-> only the clean names.
->
-> **The four repo-name training/grid scripts are now sourced only from
-> the Section 13 `*_auprc` files**, which carry every fix. The old local
-> names should also be untracked so the duplicates stop reappearing —
-> this removes them from GitHub while leaving every file on disk intact:
+> **Why four `cp` lines were removed from the staging block above.**
+> The four repo-name training/grid scripts are sourced only from the
+> Section 13 `*_auprc` files now, not from their old local working names
+> (`fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py` and
+> similar). The old local names should also
+> be untracked so the duplicates stop reappearing — this removes them
+> from GitHub while leaving every file on disk intact:
 >
 > ```bash
 > git rm --cached fedadapt_train_approach2_v2_5_phase1_archetype_bestckpt_fix.py \
@@ -1720,4 +1712,3 @@ in this document re-runs the patcher, so these two scripts are provenance
 (how the patched files came to exist), not a dependency of reproducing any
 result here. Push them only if you want the patch process itself
 documented/reproducible in the repo, not because anything requires it.
-
